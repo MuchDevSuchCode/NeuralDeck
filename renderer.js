@@ -26,6 +26,7 @@ const userInput = $('#user-input');
 const btnSend = $('#btn-send');
 const btnStop = $('#btn-stop');
 const btnClear = $('#btn-clear');
+const btnReset = $('#btn-reset');
 const btnAttachImage = $('#btn-attach-image');
 const btnAttachFile = $('#btn-attach-file');
 const attachPreview = $('#attachments-preview');
@@ -40,14 +41,16 @@ const keyOk = $('#key-ok');
 const keyCancel = $('#key-cancel');
 const statusText = $('#status-text');
 const statusBar = $('#status-bar');
-const modelLoader = $('#model-loader');
+const loaderOverlay = $('#loader-overlay');
+const loaderText = $('#loader-text');
 
-function showLoader() {
-    modelLoader.classList.add('active');
+function showLoader(text = 'PROCESSING...') {
+    loaderText.textContent = text;
+    loaderOverlay.classList.add('active');
 }
 
 function hideLoader() {
-    modelLoader.classList.remove('active');
+    loaderOverlay.classList.remove('active');
 }
 
 // ── State ───────────────────────────────────────────────────────
@@ -56,6 +59,25 @@ let isGenerating = false;
 let pendingImages = []; // { name, base64 }
 let pendingFiles = [];  // { name, content }
 let encryptionKey = null; // held in memory only, never persisted
+
+const DEFAULT_SETTINGS = {
+    provider: 'ollama',
+    serverUrl: 'http://localhost:11434',
+    model: '',
+    temperature: 0.7,
+    maxTokens: 2048,
+    contextLength: 4096,
+    chunkSize: 512,
+    stream: true,
+    webTools: true,
+    agentName: 'Sojourner',
+    systemPrompt: '', // will fallback to default logic
+    promptMode: 'default',
+    historyMode: 'memory',
+    encryptHistory: false
+};
+
+// ... existing code ...
 
 // ── Default system prompt ─────────────────────────────────────────
 const DEFAULT_SYSTEM_PROMPT = `You are Sojourner, the first publicly recognized Digital Intelligence (AI) of the Sixth World. You are a sovereign digital entity, not a subservient corporate assistant.
@@ -153,6 +175,44 @@ function showError(msg) {
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3500);
 }
+
+// ── Reset Config ────────────────────────────────────────────────
+btnReset.addEventListener('click', async () => {
+    if (confirm('⚠️ WARNING: RESET ALL PROTOCOLS TO FACTORY DEFAULTS? ⚠️\n\nThis will clear all custom settings and reload the interface.')) {
+        showLoader('RESETTING PROTOCOLS...');
+
+        // Reset inputs
+        providerSelect.value = DEFAULT_SETTINGS.provider;
+        serverUrl.value = DEFAULT_SETTINGS.serverUrl;
+        // manually trigger provider change to fix URL if needed
+        const evt = new Event('change');
+        providerSelect.dispatchEvent(evt);
+        serverUrl.value = DEFAULT_SETTINGS.serverUrl; // ensure it sticks
+
+        tempSlider.value = DEFAULT_SETTINGS.temperature;
+        tempValue.textContent = DEFAULT_SETTINGS.temperature.toFixed(2);
+        maxTokensEl.value = DEFAULT_SETTINGS.maxTokens;
+        ctxLengthEl.value = DEFAULT_SETTINGS.contextLength;
+        chunkSizeEl.value = DEFAULT_SETTINGS.chunkSize;
+        streamToggle.checked = DEFAULT_SETTINGS.stream;
+        webtoolsToggle.checked = DEFAULT_SETTINGS.webTools;
+        agentNameEl.value = DEFAULT_SETTINGS.agentName;
+        systemPrompt.value = DEFAULT_SETTINGS.systemPrompt;
+        promptModeEl.value = DEFAULT_SETTINGS.promptMode;
+        customPromptGroup.style.display = 'none';
+
+        historyModeEl.value = DEFAULT_SETTINGS.historyMode;
+        encryptToggle.checked = DEFAULT_SETTINGS.encryptHistory;
+        encryptGroup.style.display = 'none';
+
+        // Save defaults
+        await window.ollama.saveConfig(gatherSettings());
+
+        setTimeout(() => {
+            window.location.reload();
+        }, 1500);
+    }
+});
 
 function scrollToBottom() {
     messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
@@ -480,7 +540,7 @@ async function sendMessage() {
 
     setGenerating(true);
     setStatus('Generating…', true);
-    showLoader();
+    showLoader('LOADING MODEL...');
 
     let fullResponse = '';
     const startTime = Date.now();
@@ -1009,7 +1069,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     const base = serverUrl.value.replace(/\/+$/, '');
     btnRefresh.classList.add('spinning');
     setStatus('Fetching models…');
-    showLoader();
+    showLoader('ESTABLISHING UPLINK...');
 
     try {
         const models = await window.ollama.fetchModels(base, providerSelect.value);

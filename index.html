@@ -152,12 +152,20 @@
       </div>
 
       <button id="btn-clear" class="btn-secondary">Clear Chat</button>
+      <button id="btn-reset" class="btn-secondary btn-danger" style="margin-top: 10px;">Reset Protocols</button>
     </aside>
 
     <!-- Chat Area -->
     <main id="chat-area">
-      <div id="model-loader">
-        <div class="loader-bar"></div>
+      <div id="loader-overlay">
+        <div class="loader-card">
+          <div class="loader-content">
+            <div id="loader-text" class="hack-blink">INITIALIZING NEURAL LINK...</div>
+            <div class="loader-track">
+              <div class="loader-bar"></div>
+            </div>
+          </div>
+        </div>
       </div>
       <div id="messages">
         <div class="welcome-message">
