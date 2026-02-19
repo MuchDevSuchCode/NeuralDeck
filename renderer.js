@@ -1060,12 +1060,26 @@ streamToggle.addEventListener('change', autoSave);
 webtoolsToggle.addEventListener('change', autoSave);
 modelSelect.addEventListener('change', autoSave);
 
-// Auto-switch default URL when provider changes
-const PROVIDER_DEFAULTS = { ollama: 'http://localhost:11434', lmstudio: 'http://localhost:1234' };
+// Auto-switch port when provider changes (preserves hostname)
 providerSelect.addEventListener('change', () => {
-    const prev = providerSelect.value === 'lmstudio' ? 'ollama' : 'lmstudio';
-    // Only auto-switch if the URL is still at the other provider's default
-    if (serverUrl.value === PROVIDER_DEFAULTS[prev]) {
+    try {
+        let currentUrl = serverUrl.value.trim();
+        // Ensure protocol for parsing
+        if (!/^https?:\/\//i.test(currentUrl)) {
+            currentUrl = 'http://' + currentUrl;
+        }
+
+        const urlObj = new URL(currentUrl);
+        const targetPort = providerSelect.value === 'lmstudio' ? '1234' : '11434';
+
+        // Update port
+        urlObj.port = targetPort;
+
+        // Update field
+        serverUrl.value = urlObj.toString().replace(/\/$/, ''); // remove trailing slash
+    } catch (e) {
+        // Fallback if parsing fails
+        const PROVIDER_DEFAULTS = { ollama: 'http://localhost:11434', lmstudio: 'http://localhost:1234' };
         serverUrl.value = PROVIDER_DEFAULTS[providerSelect.value];
     }
     autoSave();

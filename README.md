@@ -25,13 +25,15 @@ A sleek Electron desktop client for [Ollama](https://ollama.com) and [LM Studio]
 - **Emoji picker** — built-in emoji panel with 8 categorized tabs and search
 - **Hack simulation** — built-in slash commands that play animated terminal-style hacking sequences
 - **System prompt modes** — Default (Sojourner persona), None, or Custom with your own prompt
+- **Smart Port Switching** — automatically swaps ports (11434 ↔ 1234) when switching providers while preserving your custom hostname
+- **System Restore** — "Reset Protocols" button to wipe settings and restore factory defaults
 - **Persistent chat history** — choose between in-memory or disk-based history storage
 - **Encrypted history** — optional AES-256-GCM encryption for disk-stored conversations
 - **Performance stats** — tokens/sec and token count displayed on every response
 - **Configurable parameters** — temperature, max tokens, context length, chunk size
 - **Agent naming** — customize the assistant's display name (default: Sojourner)
 - **Auto-persistence** — all settings saved automatically to a local config file
-- **Terminal aesthetic** — custom icon, monospace font, green accent, scanline overlay, dark theme
+- **Neural Interface** — cyberpunk/terminal aesthetic with glassmorphism, scanlines, and animated "hack" style loaders
 
 ## Prerequisites
 
@@ -65,6 +67,7 @@ The app will auto-connect to `http://localhost:11434` and fetch available models
 7. **Emoji** — click the 😊 smiley button to open the emoji picker; click any emoji to insert it at your cursor
 8. **Hack sim** — type a `/` command to run a simulated hacking sequence (see below)
 9. **Tune parameters** — open the settings sidebar with the gear icon
+10. **System Restore** — use the "Reset Protocols" button at the bottom of settings to factory reset the app
 
 ### Keyboard Shortcuts
 
