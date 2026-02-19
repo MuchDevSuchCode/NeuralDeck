@@ -7,8 +7,8 @@ A sleek Electron desktop client for [Ollama](https://ollama.com) with a Linux te
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 <p>
-  <img src="screenshot.png" alt="Neural Deck" width="600" />
-  <img src="Screenshot2.jpg" alt="Neural Deck Chat" width="600" />
+  <img src="screenshot1.png" alt="Neural Deck" width="600" />
+  <img src="screenshot2.png" alt="Neural Deck Chat" width="600" />
 </p>
 
 ## Features
