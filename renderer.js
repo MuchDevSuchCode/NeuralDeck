@@ -40,6 +40,15 @@ const keyOk = $('#key-ok');
 const keyCancel = $('#key-cancel');
 const statusText = $('#status-text');
 const statusBar = $('#status-bar');
+const modelLoader = $('#model-loader');
+
+function showLoader() {
+    modelLoader.classList.add('active');
+}
+
+function hideLoader() {
+    modelLoader.classList.remove('active');
+}
 
 // ── State ───────────────────────────────────────────────────────
 let chatHistory = []; // { role, content, images? }
@@ -471,6 +480,7 @@ async function sendMessage() {
 
     setGenerating(true);
     setStatus('Generating…', true);
+    showLoader();
 
     let fullResponse = '';
     const startTime = Date.now();
@@ -483,6 +493,7 @@ async function sendMessage() {
             const stats = await window.ollama.chat(base, payload, useStream, (token) => {
                 if (!fullResponse) {
                     assistantDiv.innerHTML = ''; // remove typing indicator
+                    hideLoader();
                 }
                 fullResponse += token;
                 assistantDiv.innerHTML = renderMarkdown(fullResponse);
@@ -585,6 +596,7 @@ async function sendMessage() {
                 result = await window.ollama.chat(base, finalPayload, useStream, (token) => {
                     if (!fullResponse) {
                         assistantDiv.innerHTML = '';
+                        hideLoader();
                     }
                     fullResponse += token;
                     assistantDiv.innerHTML = renderMarkdown(fullResponse);
@@ -636,6 +648,7 @@ async function sendMessage() {
         }
     } finally {
         setGenerating(false);
+        hideLoader();
     }
 }
 
@@ -996,6 +1009,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     const base = serverUrl.value.replace(/\/+$/, '');
     btnRefresh.classList.add('spinning');
     setStatus('Fetching models…');
+    showLoader();
 
     try {
         const models = await window.ollama.fetchModels(base, providerSelect.value);
@@ -1010,6 +1024,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         setStatus('Connection failed');
     } finally {
         btnRefresh.classList.remove('spinning');
+        hideLoader();
     }
 
     // Load disk history if in disk mode
