@@ -135,6 +135,124 @@ ipcMain.handle('history:clear', () => {
   }
 });
 
+// ── Web API handlers (free, no API keys) ────────────────────────
+const { net } = require('electron');
+
+async function fetchJSON(url) {
+  const res = await net.fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+// Weather via Open-Meteo (geocode + forecast)
+ipcMain.handle('web:weather', async (_event, city) => {
+  try {
+    // Geocode the city
+    const geo = await fetchJSON(
+      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en`
+    );
+    if (!geo.results || geo.results.length === 0) {
+      return { success: false, error: `City not found: ${city}` };
+    }
+    const { latitude, longitude, name, country, timezone } = geo.results[0];
+
+    // Fetch current weather + 3-day forecast
+    const weather = await fetchJSON(
+      `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}` +
+      `&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m` +
+      `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max` +
+      `&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=${encodeURIComponent(timezone)}&forecast_days=3`
+    );
+
+    return {
+      success: true,
+      data: {
+        location: `${name}, ${country}`,
+        timezone,
+        current: weather.current,
+        current_units: weather.current_units,
+        daily: weather.daily,
+        daily_units: weather.daily_units,
+      },
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Time via WorldTimeAPI
+ipcMain.handle('web:time', async (_event, location) => {
+  try {
+    // First geocode to get timezone
+    const geo = await fetchJSON(
+      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1&language=en`
+    );
+    if (!geo.results || geo.results.length === 0) {
+      return { success: false, error: `Location not found: ${location}` };
+    }
+    const { name, country, timezone } = geo.results[0];
+
+    const timeData = await fetchJSON(
+      `https://worldtimeapi.org/api/timezone/${encodeURIComponent(timezone)}`
+    );
+
+    return {
+      success: true,
+      data: {
+        location: `${name}, ${country}`,
+        timezone,
+        datetime: timeData.datetime,
+        utc_offset: timeData.utc_offset,
+        day_of_week: timeData.day_of_week,
+      },
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// IP geolocation via ip-api.com
+ipcMain.handle('web:ip', async (_event, address) => {
+  try {
+    const url = address
+      ? `http://ip-api.com/json/${encodeURIComponent(address)}?fields=status,message,country,regionName,city,zip,lat,lon,timezone,isp,org,as,query`
+      : `http://ip-api.com/json/?fields=status,message,country,regionName,city,zip,lat,lon,timezone,isp,org,as,query`;
+
+    const data = await fetchJSON(url);
+    if (data.status === 'fail') {
+      return { success: false, error: data.message || 'IP lookup failed' };
+    }
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Web search via DuckDuckGo Instant Answer API
+ipcMain.handle('web:search', async (_event, query) => {
+  try {
+    const data = await fetchJSON(
+      `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`
+    );
+    return {
+      success: true,
+      data: {
+        heading: data.Heading || '',
+        abstract: data.AbstractText || '',
+        source: data.AbstractSource || '',
+        url: data.AbstractURL || '',
+        answer: data.Answer || '',
+        related: (data.RelatedTopics || []).slice(0, 5).map((t) => ({
+          text: t.Text || '',
+          url: t.FirstURL || '',
+        })).filter((t) => t.text),
+      },
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1100,

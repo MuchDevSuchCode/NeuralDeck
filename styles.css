@@ -1232,6 +1232,31 @@ textarea:focus {
   border-color: var(--accent-hover);
 }
 
+/* ── Tool Call Status ───────────────────────────────────────────── */
+.tool-status {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  color: var(--accent);
+  padding: 8px 0;
+  animation: tool-pulse 1.5s ease-in-out infinite;
+}
+
+.tool-status strong {
+  color: var(--text-primary);
+}
+
+@keyframes tool-pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}
+
 /* ── Hack Command Output ───────────────────────────────────────── */
 .hack-output {
   font-family: 'JetBrains Mono', 'Fira Code', monospace;

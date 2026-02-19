@@ -6,16 +6,39 @@ contextBridge.exposeInMainWorld('ollama', {
     /**
      * Fetch the list of locally available models.
      * @param {string} baseUrl - e.g. "http://localhost:11434"
-     * @returns {Promise<{name: string, vision: boolean}[]>} model info
+     * @returns {Promise<{name: string, vision: boolean, tools: boolean}[]>} model info
      */
     async fetchModels(baseUrl) {
         const res = await fetch(`${baseUrl}/api/tags`);
         if (!res.ok) throw new Error(`Failed to fetch models: ${res.status}`);
         const data = await res.json();
-        return (data.models || []).map((m) => ({
+        const models = (data.models || []).map((m) => ({
             name: m.name,
             vision: !!(m.details && m.details.families && m.details.families.includes('clip')),
+            tools: false,
         }));
+
+        // Detect tool-calling support via /api/show (check template for tool tokens)
+        await Promise.all(models.map(async (m) => {
+            try {
+                const showRes = await fetch(`${baseUrl}/api/show`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: m.name }),
+                });
+                if (showRes.ok) {
+                    const info = await showRes.json();
+                    const tmpl = (info.template || '').toLowerCase();
+                    if (tmpl.includes('tool') || tmpl.includes('function') || tmpl.includes('<|plugin|>')) {
+                        m.tools = true;
+                    }
+                }
+            } catch {
+                // skip — can't determine tool support
+            }
+        }));
+
+        return models;
     },
 
     /**
@@ -53,6 +76,7 @@ contextBridge.exposeInMainWorld('ollama', {
                     eval_duration: data.eval_duration,
                     prompt_eval_count: data.prompt_eval_count,
                     prompt_eval_duration: data.prompt_eval_duration,
+                    toolCalls: data.message && data.message.tool_calls ? data.message.tool_calls : null,
                 };
             }
 
@@ -61,6 +85,7 @@ contextBridge.exposeInMainWorld('ollama', {
             const decoder = new TextDecoder();
             let buffer = '';
             let stats = {};
+            let toolCalls = null;
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -76,6 +101,9 @@ contextBridge.exposeInMainWorld('ollama', {
                         const obj = JSON.parse(line);
                         if (obj.message && obj.message.content) {
                             onToken(obj.message.content);
+                        }
+                        if (obj.message && obj.message.tool_calls) {
+                            toolCalls = obj.message.tool_calls;
                         }
                         // Capture stats from the final chunk (done: true)
                         if (obj.done && obj.eval_count) {
@@ -98,6 +126,9 @@ contextBridge.exposeInMainWorld('ollama', {
                     if (obj.message && obj.message.content) {
                         onToken(obj.message.content);
                     }
+                    if (obj.message && obj.message.tool_calls) {
+                        toolCalls = obj.message.tool_calls;
+                    }
                     if (obj.done && obj.eval_count) {
                         stats = {
                             eval_count: obj.eval_count,
@@ -112,7 +143,7 @@ contextBridge.exposeInMainWorld('ollama', {
             }
 
             abortController = null;
-            return stats;
+            return { ...stats, toolCalls };
         } catch (err) {
             abortController = null;
             // Re-throw abort as a plain Error so it survives contextBridge serialization
@@ -146,4 +177,10 @@ contextBridge.exposeInMainWorld('ollama', {
     saveHistory: (messages, encrypt, key) => ipcRenderer.invoke('history:save', messages, encrypt, key),
     loadHistory: (encrypt, key) => ipcRenderer.invoke('history:load', encrypt, key),
     clearHistory: () => ipcRenderer.invoke('history:clear'),
+
+    // ── Web tools ────────────────────────────────────────────────
+    webWeather: (city) => ipcRenderer.invoke('web:weather', city),
+    webTime: (location) => ipcRenderer.invoke('web:time', location),
+    webIP: (address) => ipcRenderer.invoke('web:ip', address),
+    webSearch: (query) => ipcRenderer.invoke('web:search', query),
 });

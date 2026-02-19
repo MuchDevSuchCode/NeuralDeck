@@ -17,7 +17,9 @@ A sleek Electron desktop client for [Ollama](https://ollama.com) with a Linux te
 ## Features
 
 - **Streaming chat** — real-time token streaming with stop/cancel support
-- **Vision model detection** — 👁 icon in the model dropdown for models with image capabilities
+- **AI tool calling** — Gemini-style tool use; the model can query weather, time, IP info, and web search using free APIs — no API keys needed
+- **Model capability icons** — 👁 vision, 🔧 tool-calling — icons in the model dropdown so you know what each model supports
+- **Vision model support** — attach images and use vision-capable models for image analysis
 - **Image & file attachments** — attach images (base64 for vision models) or text files to your prompts; attached files display as chips in the chat history
 - **Emoji picker** — built-in emoji panel with 8 categorized tabs and search
 - **Hack simulation** — built-in slash commands that play animated terminal-style hacking sequences
@@ -54,12 +56,13 @@ The app will auto-connect to `http://localhost:11434` and fetch available models
 ## Usage
 
 1. **Connect** — enter your Ollama server URL in the top bar and click the refresh button
-2. **Select a model** — pick from the dropdown (👁 = vision-capable)
+2. **Select a model** — pick from the dropdown (👁 = vision, 🔧 = tool-calling)
 3. **Chat** — type a message and press Enter or click Send
-4. **Attach files** — use the 📷 (image) or 📎 (file) buttons next to the input
-5. **Emoji** — click the 😊 smiley button to open the emoji picker; click any emoji to insert it at your cursor
-6. **Hack sim** — type a `/` command to run a simulated hacking sequence (see below)
-7. **Tune parameters** — open the settings sidebar with the gear icon
+4. **Ask real-world questions** — models with 🔧 can fetch live weather, time, IP info, and web search results
+5. **Attach files** — use the 📷 (image) or 📎 (file) buttons next to the input
+6. **Emoji** — click the 😊 smiley button to open the emoji picker; click any emoji to insert it at your cursor
+7. **Hack sim** — type a `/` command to run a simulated hacking sequence (see below)
+8. **Tune parameters** — open the settings sidebar with the gear icon
 
 ### Keyboard Shortcuts
 
@@ -68,6 +71,32 @@ The app will auto-connect to `http://localhost:11434` and fetch available models
 | `Enter` | Send message |
 | `Shift+Enter` | New line in input |
 | `Escape` | Close emoji picker / encryption key modal |
+
+## AI Tool Calling
+
+Models with the 🔧 icon support **Ollama's native tool-calling API**. When you ask a real-world question, the model decides on its own whether to call a tool — just like Gemini or ChatGPT.
+
+### Available Tools
+
+| Tool | API Source | Description |
+|------|-----------|-------------|
+| `get_weather` | [Open-Meteo](https://open-meteo.com) | Current conditions + 3-day forecast for any city |
+| `get_time` | [WorldTimeAPI](https://worldtimeapi.org) | Current local time in any city/timezone |
+| `get_ip_info` | [ip-api.com](http://ip-api.com) | IP geolocation lookup (defaults to your IP) |
+| `web_search` | [DuckDuckGo](https://duckduckgo.com) | Quick factual web lookup |
+
+All APIs are **free and require no API keys**.
+
+### How It Works
+
+1. You ask a question like *"What's the weather in Dallas?"*
+2. The model returns a `tool_calls` request for `get_weather`
+3. A pulsing `🔧 Calling get_weather…` indicator appears
+4. Neural Deck fetches real data from the API
+5. The result goes back to the model, which writes a natural-language response
+6. The response meta line shows `🔧 1 tool call(s)` when tools were used
+
+> **Note:** Models without tool support (no 🔧 icon) work normally — tool definitions are only sent to capable models. Tool support is auto-detected via Ollama's `/api/show` endpoint.
 
 ## Hack Simulation
 
@@ -129,9 +158,9 @@ When the **Encrypt History** toggle is enabled (only visible in Disk mode), chat
 
 ```
 neural-deck/
-├── main.js            # Electron main process (window, IPC, file dialogs, crypto)
-├── preload.js         # Bridge between main & renderer (Ollama API, history IPC)
-├── renderer.js        # Frontend logic (chat, markdown, attachments, emoji, history)
+├── main.js            # Electron main process (window, IPC, file dialogs, crypto, web APIs)
+├── preload.js         # Bridge between main & renderer (Ollama API, tool detection, history IPC)
+├── renderer.js        # Frontend logic (chat, tool calling, markdown, attachments, emoji, history)
 ├── hack-commands.js   # Simulated hacking command engine & animations
 ├── index.html         # App layout & structure
 ├── styles.css         # Terminal-themed styling
@@ -165,7 +194,15 @@ Settings are auto-saved to `<userData>/config.json` and restored on launch:
 The client communicates with Ollama via its REST API:
 
 - `GET /api/tags` — list models (with vision detection via `details.families`)
-- `POST /api/chat` — chat completion (streaming or non-streaming)
+- `POST /api/show` — detect tool-calling support (checks model template for tool tokens)
+- `POST /api/chat` — chat completion (streaming or non-streaming, with optional tool calling)
+
+It also queries these free external APIs for tool-call results:
+
+- [Open-Meteo](https://open-meteo.com) — weather and geocoding
+- [WorldTimeAPI](https://worldtimeapi.org) — timezone and current time
+- [ip-api.com](http://ip-api.com) — IP geolocation
+- [DuckDuckGo Instant Answer](https://api.duckduckgo.com) — web search
 
 ## Security
 
@@ -173,6 +210,7 @@ The client communicates with Ollama via its REST API:
 - Key derivation uses **scrypt** (`N=16384, r=8, p=1`) with a unique random salt per save
 - The passphrase is **never persisted** — it's held only in a JavaScript variable for the duration of the session
 - The encryption key modal is **separate from the chat** — passphrase input is never added to chat history or sent to the model
+- Web tool API calls are made from the **main process** — no direct network access from the renderer
 
 ## License
 

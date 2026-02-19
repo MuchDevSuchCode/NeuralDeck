@@ -249,16 +249,25 @@ btnSettings.addEventListener('click', () => {
 });
 
 // ── Populate model dropdown ─────────────────────────────────────
+const modelCapabilities = new Map();
+
 function populateModels(models) {
     modelSelect.innerHTML = '';
+    modelCapabilities.clear();
     if (models.length === 0) {
         modelSelect.innerHTML = '<option value="">No models found</option>';
         return;
     }
     models.forEach((m) => {
+        modelCapabilities.set(m.name, { vision: m.vision, tools: m.tools });
         const opt = document.createElement('option');
         opt.value = m.name;
-        opt.textContent = m.vision ? `👁 ${m.name}` : m.name;
+        let label = m.name;
+        const icons = [];
+        if (m.vision) icons.push('👁');
+        if (m.tools) icons.push('🔧');
+        if (icons.length > 0) label = `${icons.join('')} ${label}`;
+        opt.textContent = label;
         modelSelect.appendChild(opt);
     });
 }
@@ -372,7 +381,70 @@ async function sendMessage() {
 
     const useStream = streamToggle.checked;
 
+    // ── Tool definitions ────────────────────────────────────────
+    const toolDefs = [
+        {
+            type: 'function',
+            function: {
+                name: 'get_weather',
+                description: 'Get current weather and 3-day forecast for a city',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        city: { type: 'string', description: 'City name, e.g. Dallas, Tokyo, London' },
+                    },
+                    required: ['city'],
+                },
+            },
+        },
+        {
+            type: 'function',
+            function: {
+                name: 'get_time',
+                description: 'Get the current local time in a city or timezone',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        location: { type: 'string', description: 'City or location name, e.g. Tokyo, London' },
+                    },
+                    required: ['location'],
+                },
+            },
+        },
+        {
+            type: 'function',
+            function: {
+                name: 'get_ip_info',
+                description: 'Get geolocation information for an IP address, or the local IP if none is specified',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        address: { type: 'string', description: 'IP address to look up (optional, defaults to current IP)' },
+                    },
+                },
+            },
+        },
+        {
+            type: 'function',
+            function: {
+                name: 'web_search',
+                description: 'Search the web for factual information about a topic',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        query: { type: 'string', description: 'The search query' },
+                    },
+                    required: ['query'],
+                },
+            },
+        },
+    ];
+
+    const selectedCaps = modelCapabilities.get(model) || {};
     const payload = { model, messages, options, stream: useStream };
+    if (selectedCaps.tools) {
+        payload.tools = toolDefs;
+    }
     const base = serverUrl.value.replace(/\/+$/, '');
 
     // Create assistant bubble with typing indicator
@@ -400,41 +472,112 @@ async function sendMessage() {
     const startTime = Date.now();
 
     try {
-        const stats = await window.ollama.chat(base, payload, useStream, (token) => {
-            if (!fullResponse) {
-                assistantDiv.innerHTML = ''; // remove typing indicator
+        // ── Tool-call loop ──────────────────────────────────────
+        // First request: non-streaming to detect tool_calls
+        let initialPayload = { ...payload, stream: false };
+        let result = await window.ollama.chat(base, initialPayload, false, () => { });
+        let toolCallRound = 0;
+        const MAX_TOOL_ROUNDS = 5;
+
+        while (result.toolCalls && result.toolCalls.length > 0 && toolCallRound < MAX_TOOL_ROUNDS) {
+            toolCallRound++;
+
+            // Add assistant tool_call message to history
+            const assistantToolMsg = { role: 'assistant', content: '', tool_calls: result.toolCalls };
+            messages.push(assistantToolMsg);
+
+            // Execute each tool call
+            for (const tc of result.toolCalls) {
+                const fn = tc.function;
+                const toolName = fn.name;
+                const args = fn.arguments || {};
+
+                setStatus(`🔧 Calling ${toolName}…`, true);
+                assistantDiv.innerHTML = `<div class="tool-status">🔧 Calling <strong>${toolName}</strong>(${JSON.stringify(args)})…</div>`;
+                scrollToBottom();
+
+                let toolResult;
+                try {
+                    if (toolName === 'get_weather') {
+                        toolResult = await window.ollama.webWeather(args.city);
+                    } else if (toolName === 'get_time') {
+                        toolResult = await window.ollama.webTime(args.location);
+                    } else if (toolName === 'get_ip_info') {
+                        toolResult = await window.ollama.webIP(args.address || null);
+                    } else if (toolName === 'web_search') {
+                        toolResult = await window.ollama.webSearch(args.query);
+                    } else {
+                        toolResult = { success: false, error: `Unknown tool: ${toolName}` };
+                    }
+                } catch (toolErr) {
+                    toolResult = { success: false, error: toolErr.message };
+                }
+
+                // Add tool result to message history
+                const toolContent = toolResult.success
+                    ? JSON.stringify(toolResult.data)
+                    : `Error: ${toolResult.error}`;
+                messages.push({ role: 'tool', content: toolContent, tool_name: toolName });
             }
-            fullResponse += token;
-            assistantDiv.innerHTML = renderMarkdown(fullResponse);
-            scrollToBottom();
-        });
 
-        chatHistory.push({ role: 'assistant', content: fullResponse });
-        persistHistory();
-        const elapsed = Date.now() - startTime;
-
-        // Calculate tokens/sec from Ollama stats
-        let tokensPerSec = null;
-        if (stats && stats.eval_count && stats.eval_duration) {
-            // eval_duration is in nanoseconds
-            tokensPerSec = (stats.eval_count / (stats.eval_duration / 1e9)).toFixed(1);
+            // Re-send to model with tool results — still non-streaming to check for more tool calls
+            setStatus('Processing tool results…', true);
+            assistantDiv.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
+            result = await window.ollama.chat(base, { ...payload, messages, stream: false }, false, () => { });
         }
 
-        // Add meta line under the bubble
-        const meta = document.createElement('span');
-        meta.className = 'message-meta';
-        const now = new Date();
-        let metaText = `${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · ${formatDuration(elapsed)}`;
-        if (tokensPerSec) {
-            metaText += ` · ${tokensPerSec} tok/s`;
-            if (stats.eval_count) metaText += ` (${stats.eval_count} tokens)`;
+        // ── Final response (streamed) ───────────────────────────
+        // If the non-streaming response already has content and no tool calls, use it
+        // Otherwise, re-send with streaming for the final answer
+        if (result.toolCalls && result.toolCalls.length === 0) {
+            result.toolCalls = null;
         }
-        meta.textContent = metaText;
-        wrapper.appendChild(meta);
 
-        let statusText = `Ready — last response ${formatDuration(elapsed)}`;
-        if (tokensPerSec) statusText += ` · ${tokensPerSec} tok/s`;
-        setStatus(statusText, true);
+        if (!result.toolCalls) {
+            // Check if the non-streaming response already produced content
+            // We need to re-do this with streaming for the nice UX
+            const finalPayload = { ...payload, messages, stream: useStream };
+            delete finalPayload.tools; // no tools on final response pass
+            assistantDiv.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
+
+            const stats = await window.ollama.chat(base, finalPayload, useStream, (token) => {
+                if (!fullResponse) {
+                    assistantDiv.innerHTML = ''; // remove typing indicator
+                }
+                fullResponse += token;
+                assistantDiv.innerHTML = renderMarkdown(fullResponse);
+                scrollToBottom();
+            });
+
+            chatHistory.push({ role: 'assistant', content: fullResponse });
+            persistHistory();
+            const elapsed = Date.now() - startTime;
+
+            // Calculate tokens/sec from Ollama stats
+            let tokensPerSec = null;
+            if (stats && stats.eval_count && stats.eval_duration) {
+                tokensPerSec = (stats.eval_count / (stats.eval_duration / 1e9)).toFixed(1);
+            }
+
+            // Add meta line under the bubble
+            const meta = document.createElement('span');
+            meta.className = 'message-meta';
+            const now = new Date();
+            let metaText = `${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · ${formatDuration(elapsed)}`;
+            if (tokensPerSec) {
+                metaText += ` · ${tokensPerSec} tok/s`;
+                if (stats.eval_count) metaText += ` (${stats.eval_count} tokens)`;
+            }
+            if (toolCallRound > 0) {
+                metaText += ` · 🔧 ${toolCallRound} tool call(s)`;
+            }
+            meta.textContent = metaText;
+            wrapper.appendChild(meta);
+
+            let statusText = `Ready — last response ${formatDuration(elapsed)}`;
+            if (tokensPerSec) statusText += ` · ${tokensPerSec} tok/s`;
+            setStatus(statusText, true);
+        }
     } catch (err) {
         const errStr = String(err.message || err).toLowerCase();
         if (err.name === 'AbortError' || errStr.includes('aborterror') || errStr.includes('abort')) {
