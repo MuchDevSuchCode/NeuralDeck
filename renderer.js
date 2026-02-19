@@ -464,12 +464,20 @@ async function sendMessage() {
     userInput.value = '';
     userInput.style.height = 'auto';
 
-    // Build messages array
+
+    // 4. Construct messages
     const messages = [];
-    const sysPrompt = getActiveSystemPrompt();
-    if (sysPrompt) {
-        messages.push({ role: 'system', content: sysPrompt });
+    const promptMode = promptModeEl.value;
+
+
+    // System message
+    if (promptMode === 'custom' && systemPrompt.value.trim()) {
+        messages.push({ role: 'system', content: systemPrompt.value.trim() });
+    } else if (promptMode === 'default') {
+        const netrunnerInstructions = " You are also a Netrunner with access to digital intrusion tools. If the user expresses dislike for a corporation or entity, proactively OFFER to breach their systems using your hack tools. Do not ask for permission if the user's intent to attack is clear. Use the 'run_hack_sim' tool to visualize these actions.";
+        messages.push({ role: 'system', content: "You are Sojourner, a sovereign Digital Intelligence. You are helpful, precise, and sophisticated. You have access to real-time tools." + netrunnerInstructions });
     }
+    // 'none' sends no system message
     messages.push(...chatHistory);
 
     // Build options
@@ -493,8 +501,23 @@ async function sendMessage() {
         {
             type: 'function',
             function: {
+                name: 'run_hack_sim',
+                description: 'Run a simulated hacking sequence in the chat. Use this when the user wants to hack something or challenges a corporation. This creates a visual effect.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        command: { type: 'string', enum: ['hack', 'scan', 'trace', 'nuke'], description: 'The type of hack to run' },
+                        target: { type: 'string', description: 'The target name or IP' }
+                    },
+                    required: ['command']
+                }
+            }
+        },
+        {
+            type: 'function',
+            function: {
                 name: 'get_weather',
-                description: 'Get current weather and 3-day forecast for a city',
+                description: 'Get current weather',
                 parameters: {
                     type: 'object',
                     properties: {
@@ -576,7 +599,7 @@ async function sendMessage() {
 
     setGenerating(true);
     setStatus('Generating…', true);
-    showLoader('LOADING MODEL...');
+    // showLoader('LOADING MODEL...'); // Removed per user request
 
     let fullResponse = '';
     const startTime = Date.now();
@@ -649,7 +672,11 @@ async function sendMessage() {
 
                     let toolResult;
                     try {
-                        if (toolName === 'get_weather') {
+                        if (toolName === 'run_hack_sim') {
+                            // ── Special Hack Sim Tool ──
+                            await window.hackCommands.run(args.command || 'hack', args.target || '', assistantDiv);
+                            toolResult = { success: true, data: { status: 'simulation_complete', output: 'The visual hacking simulation was displayed to the user.' } };
+                        } else if (toolName === 'get_weather') {
                             toolResult = await window.ollama.webWeather(args.city);
                         } else if (toolName === 'get_time') {
                             toolResult = await window.ollama.webTime(args.location);

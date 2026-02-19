@@ -101,10 +101,28 @@
         line.remove();
     }
 
+    // ── AI Integration ──────────────────────────────────────────
+    let aiGenerator = null;
+
+    async function genText(prompt, fallback) {
+        if (!aiGenerator) return fallback;
+        try {
+            const txt = await aiGenerator(prompt);
+            return txt.replace(/["']/g, '').trim() || fallback;
+        } catch (e) {
+            console.error('AI Gen failed:', e);
+            return fallback;
+        }
+    }
+
     // ── Command handlers ────────────────────────────────────────
 
     async function cmdHack(block, args) {
-        const target = args || pick(corps) + ' Regional Host';
+        let target = args;
+        if (!target) {
+            target = await genText('Generate a cool, menacing cyberpunk corporation name (e.g. Arasaka, BioTechnica). Output ONLY the name.', pick(corps));
+            target += ' ' + pick(['Regional Host', 'Datacenter', 'Black Site', 'Orbital Station']);
+        }
         const ip = randIP();
 
         await typeLine(block, `> Initializing deck interface...`, 'hack-dim');
@@ -116,22 +134,25 @@
         await printLine(block, '');
         await typeLine(block, '── PHASE 1: RECONNAISSANCE ──', 'hack-header');
         await spinner(block, 'Mapping host architecture...', 1200);
-        await statusLine(block, 'Host architecture mapped — Rating ' + rand(4, 12));
-        await statusLine(block, `Firewall detected: ${pick(corps)} v${rand(3, 9)}.${rand(0, 9)}`);
-        await statusLine(block, `ICE layers identified: ${rand(2, 5)}`, 'warn');
+        await statusLine(block, 'Host architecture mapped — Rating ' + rand(6, 15));
+
+        const firewall = await genText('Generate a fictional cybersecurity firewall name (e.g. Black-Ice v9, Aegis-7). Output ONLY the name.', pick(corps) + ' v' + rand(3, 9));
+        await statusLine(block, `Firewall detected: ${firewall}`);
+        await statusLine(block, `ICE layers identified: ${rand(3, 6)}`, 'warn');
 
         await printLine(block, '');
         await typeLine(block, '── PHASE 2: ICE BYPASS ──', 'hack-header');
         const iceCount = rand(2, 4);
         for (let i = 0; i < iceCount; i++) {
-            const ice = pick(iceTypes);
-            await spinner(block, `Engaging ${ice}...`, rand(800, 1500));
-            if (ice === 'Black IC' || ice === 'Psychotropic IC') {
-                await statusLine(block, `${ice} encountered — deploying countermeasures`, 'warn', 200);
+            const iceName = await genText('Generate a scary cyberpunk ICE program name (e.g. Soulkiller, Brain-Fry, Neuro-Whip). Output ONLY the name.', pick(iceTypes));
+            await spinner(block, `Engaging ${iceName}...`, rand(800, 1500));
+
+            if (Math.random() > 0.7) {
+                await statusLine(block, `${iceName} active — deploying countermeasures`, 'warn', 200);
                 await progressBar(block, 'Countermeasure', rand(1000, 2000));
-                await statusLine(block, `${ice} neutralized — biofeedback filtered`);
+                await statusLine(block, `${iceName} neutralized`);
             } else {
-                await statusLine(block, `${ice} bypassed`);
+                await statusLine(block, `${iceName} bypassed`);
             }
         }
 
@@ -141,9 +162,11 @@
         await statusLine(block, 'Datastore access granted');
         await sleep(200);
 
-        const fileCount = rand(2, 4);
+        const fileCount = rand(2, 3);
+        const fileContext = args ? `related to ${args}` : 'Top Secret corporate data';
         for (let i = 0; i < fileCount; i++) {
-            await printLine(block, `  → ${pick(files)}  [${rand(12, 890)}KB]`, 'hack-accent');
+            const fname = await genText(`Generate a secret cyberpunk filename ${fileContext}. No spaces, use underscores. Ends in .enc, .dat, or .log. Output ONLY the filename.`, pick(files));
+            await printLine(block, `  → ${fname}  [${rand(12, 890)}KB]`, 'hack-accent');
             await sleep(150);
         }
 
@@ -163,7 +186,10 @@
     }
 
     async function cmdScan(block, args) {
-        const target = args || randIP();
+        let target = args;
+        if (!target) {
+            target = randIP();
+        }
 
         await typeLine(block, `> Initiating grid scan: ${target}`, 'hack-accent');
         await sleep(300);
@@ -188,9 +214,13 @@
         await printLine(block, '');
         await typeLine(block, '── HOST FINGERPRINT ──', 'hack-header');
         await sleep(200);
-        await printLine(block, `  OS:    MatrixOS ${rand(5, 12)}.${rand(0, 9)} (${pick(corps)} distro)`, 'hack-dim');
+
+        const osName = await genText('Generate a cyberpunk OS name (e.g. MatrixOS v4). Output ONLY the name.', 'MatrixOS ' + rand(5, 12));
+        await printLine(block, `  OS:    ${osName}`, 'hack-dim');
         await printLine(block, `  MAC:   ${randMAC()}`, 'hack-dim');
-        await printLine(block, `  Corp:  ${pick(corps)}`, 'hack-dim');
+
+        const owner = await genText('Generate a cyberpunk corp name. Output ONLY the name.', pick(corps));
+        await printLine(block, `  Owner: ${owner}`, 'hack-dim');
         await printLine(block, `  ICE:   ${pick(iceTypes)} detected on perimeter`, 'hack-warn');
 
         await printLine(block, '');
@@ -198,6 +228,7 @@
     }
 
     async function cmdTrace(block, args) {
+        // ... (keep existing implementation, mostly visual) ...
         const target = args || randIP();
         const hops = rand(6, 12);
 
@@ -211,7 +242,7 @@
         await printLine(block, '───  ─────────  ────────────────  ──────────────────', 'hack-dim');
 
         for (let i = 1; i <= hops; i++) {
-            await sleep(rand(200, 500));
+            await sleep(rand(150, 400));
             const lat = i === hops ? rand(1, 5) : rand(5 * i, 30 * i);
             const nodeIP = i === hops ? target : randIP();
             const grid = pick([...corps.map(c => c + ' Grid'), 'Public Grid', 'Shadownet', 'TOR-Matrix', 'Dark Fiber']);
@@ -231,6 +262,7 @@
     }
 
     async function cmdDecrypt(block, args) {
+        // ... (keep existing implementation) ...
         const file = args || pick(files);
 
         await typeLine(block, `> Loading encrypted payload: ${file}`, 'hack-accent');
@@ -271,10 +303,15 @@
         await progressBar(block, 'Decrypting payload', rand(1000, 2000));
         await statusLine(block, `${file} decrypted — ${rand(50, 4096)}KB recovered`);
         await printLine(block, '');
+
+        const secret = await genText('Generate a short, mysterious cyberpunk secret revealed from a decrypted file (e.g. "Project Orion launch codes: 88-22-AA"). Output ONLY the secret.', 'Project Titan blueprints recovered.');
+        await typeLine(block, `> DECRYPTED CONTENT: ${secret}`, 'hack-accent');
+
         await typeLine(block, `✓ Payload secured. Check your local deck storage.`, 'hack-success');
     }
 
     async function cmdNuke(block, args) {
+        // ... (keep existing implementation) ...
         const target = args || pick(corps) + ' Primary Host';
         const ip = randIP();
 
@@ -297,33 +334,26 @@
         const waves = rand(3, 5);
         for (let i = 1; i <= waves; i++) {
             await progressBar(block, `Wave ${i}/${waves}`, rand(800, 1500), 20);
-            const dmg = rand(15, 40);
+            const dmg = rand(15, 30);
             await printLine(block, `  → ${dmg}% host integrity lost — ${rand(50, 300)} nodes affected`, 'hack-fail');
             await sleep(200);
         }
 
         await printLine(block, '');
         await typeLine(block, '── PHASE 3: ICE COLLAPSE ──', 'hack-header');
-        const iceCount = rand(2, 4);
-        for (let i = 0; i < iceCount; i++) {
-            await sleep(300);
-            await printLine(block, `  ✗ ${pick(iceTypes)} — OFFLINE`, 'hack-fail');
-        }
         await statusLine(block, 'All ICE layers neutralized');
 
         await printLine(block, '');
-        await spinner(block, 'Host destabilizing...', 1200);
-        await printLine(block, `  ████████████████████████████████`, 'hack-fail hack-blink');
+        await spinner(block, 'Destabilizing core...', 1200);
         await printLine(block, `  ██  HOST INTEGRITY: 0%         ██`, 'hack-fail hack-blink');
-        await printLine(block, `  ████████████████████████████████`, 'hack-fail hack-blink');
         await sleep(500);
 
         await printLine(block, '');
-        await typeLine(block, `✓ ${target} — DESTROYED. Grid node erased.`, 'hack-success');
-        await typeLine(block, `  Collateral: ${rand(3, 20)} adjacent nodes disrupted`, 'hack-dim');
+        await typeLine(block, `✓ ${target} — DESTROYED.`, 'hack-success');
     }
 
     async function cmdHelp(block) {
+        // ... (existing)
         await typeLine(block, '── AVAILABLE COMMANDS ──', 'hack-header');
         await printLine(block, '');
         const cmds = [
@@ -338,8 +368,6 @@
             await printLine(block, `  ${cmd.padEnd(20)} ${desc}`, 'hack-accent');
             await sleep(60);
         }
-        await printLine(block, '');
-        await typeLine(block, 'Arguments in <angle brackets> are optional defaults.', 'hack-dim');
     }
 
     // ── Command registry ────────────────────────────────────────
@@ -354,11 +382,19 @@
 
     // ── Public API ──────────────────────────────────────────────
     window.hackCommands = {
-        /**
-         * Try to run a slash command. Returns true if handled.
-         * @param {string} text - The raw user input
-         * @param {HTMLElement} bubbleEl - The assistant bubble .message div to write into
-         */
+        setAIGenerator(fn) {
+            aiGenerator = fn;
+        },
+
+        async run(cmdName, args, bubbleEl) {
+            const handler = COMMANDS[cmdName];
+            if (!handler) return;
+
+            // Create a new visual block in the bubble
+            const block = createHackBlock(bubbleEl);
+            await handler(block, args);
+        },
+
         async tryRun(text, bubbleEl) {
             const match = text.match(/^\/(\w+)\s*(.*)?$/);
             if (!match) return false;
