@@ -6,7 +6,10 @@ A sleek Electron desktop client for [Ollama](https://ollama.com) with a Linux te
 ![Node](https://img.shields.io/badge/Node-18+-339933?logo=node.js&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-![Neural Deck](screenshot.png)
+<p>
+  <img src="screenshot.png" alt="Neural Deck" width="600" />
+  <img src="Screenshot2.jpg" alt="Neural Deck Chat" width="600" />
+</p>
 
 ## Features
 
@@ -14,13 +17,14 @@ A sleek Electron desktop client for [Ollama](https://ollama.com) with a Linux te
 - **Vision model detection** — 👁 icon in the model dropdown for models with image capabilities
 - **Image & file attachments** — attach images (base64 for vision models) or text files to your prompts; attached files display as chips in the chat history
 - **Emoji picker** — built-in emoji panel with 8 categorized tabs and search
+- **System prompt modes** — Default (Sojourner persona), None, or Custom with your own prompt
 - **Persistent chat history** — choose between in-memory or disk-based history storage
 - **Encrypted history** — optional AES-256-GCM encryption for disk-stored conversations
 - **Performance stats** — tokens/sec and token count displayed on every response
-- **Configurable parameters** — temperature, max tokens, context length, chunk size, system prompt
-- **Agent naming** — customize the assistant's display name
+- **Configurable parameters** — temperature, max tokens, context length, chunk size
+- **Agent naming** — customize the assistant's display name (default: Sojourner)
 - **Auto-persistence** — all settings saved automatically to a local config file
-- **Terminal aesthetic** — monospace font, green accent, scanline overlay, dark theme
+- **Terminal aesthetic** — custom icon, monospace font, green accent, scanline overlay, dark theme
 
 ## Prerequisites
 
@@ -60,6 +64,16 @@ The app will auto-connect to `http://localhost:11434` and fetch available models
 | `Shift+Enter` | New line in input |
 | `Escape` | Close emoji picker / encryption key modal |
 
+## System Prompt
+
+The system prompt mode is selectable from the Settings sidebar:
+
+| Mode | Behavior |
+|------|----------|
+| **Default** | Uses the built-in Sojourner persona — a sovereign Digital Intelligence from the Sixth World |
+| **None** | No system prompt is sent; the model runs with its base behavior |
+| **Custom** | Reveals a textarea where you can write your own system prompt |
+
 ## Chat History
 
 Neural Deck supports two history storage modes, configurable in the Settings sidebar under **History**:
@@ -92,7 +106,8 @@ neural-deck/
 ├── renderer.js      # Frontend logic (chat, markdown, attachments, emoji, history)
 ├── index.html       # App layout & structure
 ├── styles.css       # Terminal-themed styling
-├── ndlogo.png       # App logo
+├── ndlogo.png       # App logo (welcome screen)
+├── ndicon.png       # App icon (top bar)
 ├── .gitignore       # Excludes node_modules/ and chat_history/
 ├── chat_history/    # Auto-created; stores persisted conversations
 └── package.json
@@ -110,8 +125,9 @@ Settings are auto-saved to `<userData>/config.json` and restored on launch:
 | Context Length | `4096` | Context window size (`num_ctx`) |
 | Chunk Size | `512` | Prompt batch size (`num_batch`) |
 | Stream | `true` | Stream tokens in real-time |
-| Agent Name | `Assistant` | Display name for the AI |
-| System Prompt | *(empty)* | System message prepended to conversations |
+| Agent Name | `Sojourner` | Display name for the AI |
+| Prompt Mode | `default` | `default`, `none`, or `custom` |
+| System Prompt | *(empty)* | Custom system message (used when Prompt Mode is `custom`) |
 | History Mode | `memory` | `memory` or `disk` |
 | Encrypt History | `false` | Enable AES-256-GCM encryption for disk history |
 

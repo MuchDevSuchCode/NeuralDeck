@@ -17,12 +17,7 @@
   <!-- ───────── Top Bar ───────── -->
   <header id="topbar">
     <div class="topbar-brand">
-      <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="10" />
-        <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
-        <path d="M2 12h20" />
-      </svg>
+      <img class="brand-icon" src="ndicon.png" alt="Neural Deck" />
       <span class="brand-title">Neural Deck</span>
     </div>
 
@@ -65,7 +60,7 @@
     <aside id="sidebar" class="open">
       <div class="param-group">
         <label for="agent-name">Agent Name</label>
-        <input type="text" id="agent-name" value="Assistant" spellcheck="false" />
+        <input type="text" id="agent-name" value="Sojourner" spellcheck="false" />
         <p class="param-hint">Display name for the AI in chat</p>
       </div>
 
@@ -125,8 +120,18 @@
       </div>
 
       <div class="param-group">
-        <label for="system-prompt">System Prompt</label>
-        <textarea id="system-prompt" rows="6" placeholder="You are a helpful assistant..."></textarea>
+        <label for="prompt-mode">System Prompt</label>
+        <select id="prompt-mode">
+          <option value="default">Default</option>
+          <option value="none">None</option>
+          <option value="custom">Custom</option>
+        </select>
+        <p class="param-hint">Default: Sojourner persona. Custom: your own prompt</p>
+      </div>
+
+      <div class="param-group" id="custom-prompt-group" style="display:none;">
+        <label for="system-prompt">Custom Prompt</label>
+        <textarea id="system-prompt" rows="6" placeholder="Enter your custom system prompt…"></textarea>
       </div>
 
       <button id="btn-clear" class="btn-secondary">Clear Chat</button>
