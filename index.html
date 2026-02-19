@@ -22,6 +22,14 @@
     </div>
 
     <div class="topbar-controls">
+      <div class="input-group provider-group">
+        <label for="provider-select">Provider</label>
+        <select id="provider-select">
+          <option value="ollama">Ollama</option>
+          <option value="lmstudio">LM Studio</option>
+        </select>
+      </div>
+
       <div class="input-group server-group">
         <label for="server-url">Server</label>
         <input type="text" id="server-url" value="http://localhost:11434" spellcheck="false" />
@@ -96,7 +104,7 @@
       <div class="param-group toggle-group">
         <label for="webtools-toggle">Web Tools</label>
         <label class="toggle-switch">
-          <input type="checkbox" id="webtools-toggle" />
+          <input type="checkbox" id="webtools-toggle" checked />
           <span class="toggle-slider"></span>
         </label>
         <p class="param-hint">Allow 🔧 models to call web APIs (weather, time, search). Off = local only</p>

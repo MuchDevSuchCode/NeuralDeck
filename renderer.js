@@ -5,6 +5,7 @@
 // ── DOM refs ────────────────────────────────────────────────────
 const $ = (sel) => document.querySelector(sel);
 const serverUrl = $('#server-url');
+const providerSelect = $('#provider-select');
 const modelSelect = $('#model-select');
 const btnRefresh = $('#btn-refresh');
 const btnSettings = $('#btn-toggle-settings');
@@ -280,7 +281,7 @@ btnRefresh.addEventListener('click', async () => {
     setStatus('Fetching models…');
 
     try {
-        const models = await window.ollama.fetchModels(base);
+        const models = await window.ollama.fetchModels(base, providerSelect.value);
         populateModels(models);
         if (models.length === 0) {
             setStatus('No models found');
@@ -442,8 +443,10 @@ async function sendMessage() {
     ];
 
     const selectedCaps = modelCapabilities.get(model) || {};
+    const useTools = webtoolsToggle.checked && selectedCaps.tools;
+
     const payload = { model, messages, options, stream: useStream };
-    if (selectedCaps.tools) {
+    if (useTools) {
         payload.tools = toolDefs;
     }
     const base = serverUrl.value.replace(/\/+$/, '');
@@ -473,7 +476,7 @@ async function sendMessage() {
     const startTime = Date.now();
 
     try {
-        const useTools = webtoolsToggle.checked && selectedCaps.tools;
+        // const useTools is now defined above
 
         if (!useTools) {
             // ── No tools — single streaming request ─────────────
@@ -484,7 +487,7 @@ async function sendMessage() {
                 fullResponse += token;
                 assistantDiv.innerHTML = renderMarkdown(fullResponse);
                 scrollToBottom();
-            });
+            }, providerSelect.value);
 
             chatHistory.push({ role: 'assistant', content: fullResponse });
             persistHistory();
@@ -515,7 +518,7 @@ async function sendMessage() {
             let initialPayload = { ...payload, stream: false };
             let result = await window.ollama.chat(base, initialPayload, false, (token) => {
                 fullResponse += token;
-            });
+            }, providerSelect.value);
             let toolCallRound = 0;
             const MAX_TOOL_ROUNDS = 5;
 
@@ -565,7 +568,7 @@ async function sendMessage() {
                 assistantDiv.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
                 result = await window.ollama.chat(base, { ...payload, messages, stream: false }, false, (token) => {
                     fullResponse += token;
-                });
+                }, providerSelect.value);
             }
 
             // If no tool calls were made, use the content from the non-streaming response directly
@@ -586,7 +589,7 @@ async function sendMessage() {
                     fullResponse += token;
                     assistantDiv.innerHTML = renderMarkdown(fullResponse);
                     scrollToBottom();
-                });
+                }, providerSelect.value);
             }
 
             chatHistory.push({ role: 'assistant', content: fullResponse });
@@ -915,6 +918,7 @@ encryptToggle.addEventListener('change', () => {
 function gatherSettings() {
     return {
         serverUrl: serverUrl.value,
+        provider: providerSelect.value,
         model: modelSelect.value,
         temperature: tempSlider.value,
         maxTokens: maxTokensEl.value,
@@ -944,7 +948,19 @@ function autoSave() {
 });
 tempSlider.addEventListener('input', autoSave);
 streamToggle.addEventListener('change', autoSave);
+webtoolsToggle.addEventListener('change', autoSave);
 modelSelect.addEventListener('change', autoSave);
+
+// Auto-switch default URL when provider changes
+const PROVIDER_DEFAULTS = { ollama: 'http://localhost:11434', lmstudio: 'http://localhost:1234' };
+providerSelect.addEventListener('change', () => {
+    const prev = providerSelect.value === 'lmstudio' ? 'ollama' : 'lmstudio';
+    // Only auto-switch if the URL is still at the other provider's default
+    if (serverUrl.value === PROVIDER_DEFAULTS[prev]) {
+        serverUrl.value = PROVIDER_DEFAULTS[providerSelect.value];
+    }
+    autoSave();
+});
 
 promptModeEl.addEventListener('change', () => {
     customPromptGroup.style.display = promptModeEl.value === 'custom' ? '' : 'none';
@@ -955,6 +971,7 @@ promptModeEl.addEventListener('change', () => {
 window.addEventListener('DOMContentLoaded', async () => {
     const cfg = await window.ollama.loadConfig();
 
+    if (cfg.provider) providerSelect.value = cfg.provider;
     if (cfg.serverUrl) serverUrl.value = cfg.serverUrl;
     if (cfg.temperature) {
         tempSlider.value = cfg.temperature;
@@ -981,7 +998,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     setStatus('Fetching models…');
 
     try {
-        const models = await window.ollama.fetchModels(base);
+        const models = await window.ollama.fetchModels(base, providerSelect.value);
         populateModels(models);
         // Restore saved model if available
         if (cfg.model && models.some((m) => m.name === cfg.model)) {

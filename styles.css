@@ -144,6 +144,24 @@ body {
   white-space: nowrap;
 }
 
+.provider-group select {
+  min-width: 100px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.provider-group select:focus {
+  border-color: var(--accent);
+}
+
 .server-group input {
   width: 220px;
   padding: 5px 10px;

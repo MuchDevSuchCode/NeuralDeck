@@ -6,9 +6,23 @@ contextBridge.exposeInMainWorld('ollama', {
     /**
      * Fetch the list of locally available models.
      * @param {string} baseUrl - e.g. "http://localhost:11434"
+     * @param {string} provider - 'ollama' or 'lmstudio'
      * @returns {Promise<{name: string, vision: boolean, tools: boolean}[]>} model info
      */
-    async fetchModels(baseUrl) {
+    async fetchModels(baseUrl, provider = 'ollama') {
+        if (provider === 'lmstudio') {
+            // LM Studio uses OpenAI-compatible /v1/models
+            const res = await fetch(`${baseUrl}/v1/models`);
+            if (!res.ok) throw new Error(`Failed to fetch models: ${res.status}`);
+            const data = await res.json();
+            return (data.data || []).map((m) => ({
+                name: m.id,
+                vision: false, // LM Studio doesn't expose this in /v1/models
+                tools: false,
+            }));
+        }
+
+        // Ollama: /api/tags + /api/show for capability detection
         const res = await fetch(`${baseUrl}/api/tags`);
         if (!res.ok) throw new Error(`Failed to fetch models: ${res.status}`);
         const data = await res.json();
@@ -44,13 +58,23 @@ contextBridge.exposeInMainWorld('ollama', {
     /**
      * Send a chat completion (streaming or non-streaming).
      * @param {string} baseUrl
-     * @param {object} payload  - { model, messages, options, stream }
+     * @param {object} payload  - { model, messages, options, stream, tools? }
      * @param {boolean} useStream - whether to stream tokens
      * @param {function} onToken - called with each token string
-     * @returns {Promise<void>}
+     * @param {string} provider - 'ollama' or 'lmstudio'
+     * @returns {Promise<object>} stats + optional toolCalls
      */
-    async chat(baseUrl, payload, useStream, onToken) {
+    async chat(baseUrl, payload, useStream, onToken, provider = 'ollama') {
         abortController = new AbortController();
+
+        if (provider === 'lmstudio') {
+            return this._chatOpenAI(baseUrl, payload, useStream, onToken);
+        }
+        return this._chatOllama(baseUrl, payload, useStream, onToken);
+    },
+
+    // ── Ollama native API ────────────────────────────────────────
+    async _chatOllama(baseUrl, payload, useStream, onToken) {
         try {
             const res = await fetch(`${baseUrl}/api/chat`, {
                 method: 'POST',
@@ -65,7 +89,6 @@ contextBridge.exposeInMainWorld('ollama', {
             }
 
             if (!useStream) {
-                // Non-streaming: wait for full response
                 const data = await res.json();
                 if (data.message && data.message.content) {
                     onToken(data.message.content);
@@ -80,7 +103,7 @@ contextBridge.exposeInMainWorld('ollama', {
                 };
             }
 
-            // Streaming mode
+            // Streaming mode — Ollama uses newline-delimited JSON
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
@@ -105,7 +128,6 @@ contextBridge.exposeInMainWorld('ollama', {
                         if (obj.message && obj.message.tool_calls) {
                             toolCalls = obj.message.tool_calls;
                         }
-                        // Capture stats from the final chunk (done: true)
                         if (obj.done && obj.eval_count) {
                             stats = {
                                 eval_count: obj.eval_count,
@@ -146,7 +168,137 @@ contextBridge.exposeInMainWorld('ollama', {
             return { ...stats, toolCalls };
         } catch (err) {
             abortController = null;
-            // Re-throw abort as a plain Error so it survives contextBridge serialization
+            if (err.name === 'AbortError') {
+                throw new Error('AbortError');
+            }
+            throw err;
+        }
+    },
+
+    // ── LM Studio / OpenAI-compatible API ────────────────────────
+    async _chatOpenAI(baseUrl, payload, useStream, onToken) {
+        try {
+            // Convert Ollama payload to OpenAI format
+            const openaiPayload = {
+                model: payload.model,
+                messages: payload.messages,
+                stream: useStream,
+            };
+            if (payload.options) {
+                if (payload.options.temperature !== undefined) openaiPayload.temperature = payload.options.temperature;
+                if (payload.options.num_predict !== undefined) openaiPayload.max_tokens = payload.options.num_predict;
+            }
+            if (payload.tools) {
+                openaiPayload.tools = payload.tools;
+            }
+
+            const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(openaiPayload),
+                signal: abortController.signal,
+            });
+
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(`LM Studio error ${res.status}: ${text}`);
+            }
+
+            if (!useStream) {
+                const data = await res.json();
+                const choice = data.choices && data.choices[0];
+                if (choice && choice.message && choice.message.content) {
+                    onToken(choice.message.content);
+                }
+                const usage = data.usage || {};
+                abortController = null;
+                return {
+                    eval_count: usage.completion_tokens || null,
+                    // Convert to nanoseconds to match Ollama format for tok/s calculation
+                    eval_duration: null,
+                    prompt_eval_count: usage.prompt_tokens || null,
+                    prompt_eval_duration: null,
+                    toolCalls: choice && choice.message && choice.message.tool_calls
+                        ? choice.message.tool_calls : null,
+                };
+            }
+
+            // Streaming mode — OpenAI uses SSE (data: {...}\n\n)
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let tokenCount = 0;
+            let toolCalls = null;
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (!trimmed || trimmed === 'data: [DONE]') continue;
+                    if (!trimmed.startsWith('data: ')) continue;
+
+                    try {
+                        const obj = JSON.parse(trimmed.slice(6));
+                        const delta = obj.choices && obj.choices[0] && obj.choices[0].delta;
+                        if (delta && delta.content) {
+                            onToken(delta.content);
+                            tokenCount++;
+                        }
+                        if (delta && delta.tool_calls) {
+                            // Accumulate tool calls from streaming deltas
+                            if (!toolCalls) toolCalls = [];
+                            for (const tc of delta.tool_calls) {
+                                if (tc.index !== undefined) {
+                                    while (toolCalls.length <= tc.index) toolCalls.push({ function: { name: '', arguments: '' } });
+                                    if (tc.function) {
+                                        if (tc.function.name) toolCalls[tc.index].function.name = tc.function.name;
+                                        if (tc.function.arguments) toolCalls[tc.index].function.arguments += tc.function.arguments;
+                                    }
+                                    if (tc.id) toolCalls[tc.index].id = tc.id;
+                                    if (tc.type) toolCalls[tc.index].type = tc.type;
+                                }
+                            }
+                        }
+                    } catch {
+                        // skip malformed SSE
+                    }
+                }
+            }
+
+            // Parse accumulated tool call arguments from strings to objects
+            if (toolCalls) {
+                toolCalls = toolCalls.map((tc) => {
+                    try {
+                        return {
+                            function: {
+                                name: tc.function.name,
+                                arguments: typeof tc.function.arguments === 'string'
+                                    ? JSON.parse(tc.function.arguments)
+                                    : tc.function.arguments,
+                            },
+                        };
+                    } catch {
+                        return tc;
+                    }
+                });
+            }
+
+            abortController = null;
+            return {
+                eval_count: tokenCount || null,
+                eval_duration: null,
+                prompt_eval_count: null,
+                prompt_eval_duration: null,
+                toolCalls,
+            };
+        } catch (err) {
+            abortController = null;
             if (err.name === 'AbortError') {
                 throw new Error('AbortError');
             }

@@ -1,6 +1,6 @@
 # Neural Deck
 
-A sleek Electron desktop client for [Ollama](https://ollama.com) with a Linux terminal–inspired UI.
+A sleek Electron desktop client for [Ollama](https://ollama.com) and [LM Studio](https://lmstudio.ai) with a Linux terminal–inspired UI.
 
 ![Electron](https://img.shields.io/badge/Electron-34-47848F?logo=electron&logoColor=white)
 ![Node](https://img.shields.io/badge/Node-18+-339933?logo=node.js&logoColor=white)
@@ -17,6 +17,7 @@ A sleek Electron desktop client for [Ollama](https://ollama.com) with a Linux te
 ## Features
 
 - **Streaming chat** — real-time token streaming with stop/cancel support
+- **Multi-provider** — switch between Ollama and LM Studio from the Provider dropdown; URL auto-switches to default ports
 - **AI tool calling** — Gemini-style tool use; the model can query weather, time, IP info, and web search using free APIs — no API keys needed
 - **Model capability icons** — 👁 vision, 🔧 tool-calling — icons in the model dropdown so you know what each model supports
 - **Vision model support** — attach images and use vision-capable models for image analysis
@@ -35,7 +36,7 @@ A sleek Electron desktop client for [Ollama](https://ollama.com) with a Linux te
 ## Prerequisites
 
 - [Node.js](https://nodejs.org) 18+
-- [Ollama](https://ollama.com) running locally (or on a reachable server)
+- [Ollama](https://ollama.com) and/or [LM Studio](https://lmstudio.ai) running locally (or on a reachable server)
 
 ## Quick Start
 
@@ -55,14 +56,15 @@ The app will auto-connect to `http://localhost:11434` and fetch available models
 
 ## Usage
 
-1. **Connect** — enter your Ollama server URL in the top bar and click the refresh button
-2. **Select a model** — pick from the dropdown (👁 = vision, 🔧 = tool-calling)
-3. **Chat** — type a message and press Enter or click Send
-4. **Ask real-world questions** — models with 🔧 can fetch live weather, time, IP info, and web search results
-5. **Attach files** — use the 📷 (image) or 📎 (file) buttons next to the input
-6. **Emoji** — click the 😊 smiley button to open the emoji picker; click any emoji to insert it at your cursor
-7. **Hack sim** — type a `/` command to run a simulated hacking sequence (see below)
-8. **Tune parameters** — open the settings sidebar with the gear icon
+1. **Provider** — select Ollama or LM Studio from the Provider dropdown
+2. **Connect** — enter your server URL in the top bar and click the refresh button (auto-fills default port)
+3. **Select a model** — pick from the dropdown (👁 = vision, 🔧 = tool-calling)
+4. **Chat** — type a message and press Enter or click Send
+5. **Ask real-world questions** — models with 🔧 can fetch live weather, time, IP info, and web search results
+6. **Attach files** — use the 📷 (image) or 📎 (file) buttons next to the input
+7. **Emoji** — click the 😊 smiley button to open the emoji picker; click any emoji to insert it at your cursor
+8. **Hack sim** — type a `/` command to run a simulated hacking sequence (see below)
+9. **Tune parameters** — open the settings sidebar with the gear icon
 
 ### Keyboard Shortcuts
 
@@ -177,7 +179,8 @@ Settings are auto-saved to `<userData>/config.json` and restored on launch:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| Server URL | `http://localhost:11434` | Ollama API endpoint |
+| Provider | `ollama` | Backend provider (`ollama` or `lmstudio`) |
+| Server URL | `http://localhost:11434` | API endpoint (auto-switches port on provider change) |
 | Temperature | `0.7` | Sampling temperature (0 = precise, 2 = creative) |
 | Max Tokens | `2048` | Maximum tokens to generate |
 | Context Length | `4096` | Context window size (`num_ctx`) |
@@ -191,13 +194,24 @@ Settings are auto-saved to `<userData>/config.json` and restored on launch:
 
 ## API
 
-The client communicates with Ollama via its REST API:
+The client supports two backend providers:
+
+### Ollama
 
 - `GET /api/tags` — list models (with vision detection via `details.families`)
 - `POST /api/show` — detect tool-calling support (checks model template for tool tokens)
-- `POST /api/chat` — chat completion (streaming or non-streaming, with optional tool calling)
+- `POST /api/chat` — chat completion (streaming via NDJSON, with optional tool calling)
 
-It also queries these free external APIs for tool-call results:
+Default: `http://localhost:11434`
+
+### LM Studio
+
+- `GET /v1/models` — list loaded models (OpenAI-compatible)
+- `POST /v1/chat/completions` — chat completion (streaming via SSE, OpenAI format)
+
+Default: `http://localhost:1234`
+
+Both providers also support these free external APIs for tool-call results:
 
 - [Open-Meteo](https://open-meteo.com) — weather and geocoding
 - [WorldTimeAPI](https://worldtimeapi.org) — timezone and current time
