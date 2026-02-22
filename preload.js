@@ -338,4 +338,5 @@ contextBridge.exposeInMainWorld('ollama', {
 
     // ── SSH connections ──────────────────────────────────────────
     sshConnect: (host, user, key) => ipcRenderer.invoke('ssh:connect', host, user, key),
+    sshRun: (host, user, key, cmd) => ipcRenderer.invoke('ssh:run', host, user, key, cmd),
 });

@@ -484,9 +484,136 @@ async function sendMessage() {
                 termDiv.innerHTML = renderMarkdown(`> **CONNECTION FAILED**\n> Target: ${host}\n> ERROR: ${result.error}`);
             }
             scrollToBottom();
+            scrollToBottom();
             userInput.focus();
         });
         return;
+    }
+
+    if (document.body.classList.contains('red-theme') && text.startsWith('/')) {
+        const parts = text.split(' ');
+        const cmd = parts[0].toLowerCase();
+
+        if (['/nmap', '/ping', '/tracert', '/whois', '/nslookup', '/dig', '/curl', '/netcat', '/nc', '/nikto', '/sqlmap', '/gobuster', '/dirb'].includes(cmd)) {
+            const target = parts.slice(1).join(' ').trim();
+            if (!target) {
+                addMessageBubble('assistant', `> **ERROR**\n> Missing target argument for ${cmd}. Usage: ${cmd} <target>`);
+                userInput.value = '';
+                userInput.style.height = 'auto';
+                return;
+            }
+
+            if (!modelSelect.value) {
+                showError('Please select a model first so the AI can analyze the results.');
+                return;
+            }
+
+            clearWelcome();
+            userInput.value = '';
+            userInput.style.height = 'auto';
+            addMessageBubble('user', text);
+
+            isGenerating = true;
+            btnSend.disabled = true;
+            setStatus(`Running ${cmd} on ${target}...`);
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'message-wrapper assistant';
+            const nameLabel = document.createElement('span');
+            nameLabel.className = 'message-name';
+            nameLabel.textContent = 'SYSTEM';
+            wrapper.appendChild(nameLabel);
+            const termDiv = document.createElement('div');
+            termDiv.className = 'message assistant';
+            termDiv.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
+            wrapper.appendChild(termDiv);
+            messagesEl.appendChild(wrapper);
+            scrollToBottom();
+
+            const host = sshHost.value;
+            const user = sshUser.value;
+            const key = sshKey.value;
+
+            let remoteCmd = '';
+            if (cmd === '/nmap') remoteCmd = `nmap -T4 -F ${target}`;
+            if (cmd === '/ping') remoteCmd = `ping -c 4 ${target}`;
+            if (cmd === '/tracert') remoteCmd = `traceroute ${target} || tracepath ${target}`;
+            if (cmd === '/whois') remoteCmd = `whois ${target}`;
+            if (cmd === '/nslookup') remoteCmd = `nslookup ${target}`;
+            if (cmd === '/dig') remoteCmd = `dig ANY +short ${target}`;
+            if (cmd === '/curl') remoteCmd = `curl -I -sSf -m 10 ${target} || curl -I -k -sSf -m 10 https://${target}`;
+            if (cmd === '/netcat' || cmd === '/nc') remoteCmd = `nc -zv -w 5 ${target} 20-1024 2>&1`;
+            if (cmd === '/nikto') remoteCmd = `nikto -h ${target} -Tuning 123 -maxtime 30s`;
+            if (cmd === '/sqlmap') remoteCmd = `sqlmap -u "${target}" --batch --dbs`;
+            if (cmd === '/gobuster' || cmd === '/dirb') remoteCmd = `dirb http://${target} -f -w`;
+
+            window.ollama.sshRun(host, user, key, remoteCmd).then(async (result) => {
+                setStatus('Command complete. Analyzing...', true);
+
+                if (result.success) {
+                    termDiv.innerHTML = renderMarkdown(`> **EXECUTION SUCCESS**\n> Target: ${target}\n> Command: \`${remoteCmd}\`\n\n**RAW OUTPUT:**\n\`\`\`\n${result.output}\n\`\`\``);
+                    scrollToBottom();
+
+                    const prompt = `I ran the following command during my penetration test: \`${remoteCmd}\`\n\nHere is the raw output:\n\`\`\`\n${result.output}\n\`\`\`\n\nPlease interpret these findings and provide a concise, professional Red Team assessment of this target. Focus on interesting or vulnerable findings. Do not hallucinate data not in the output.`;
+
+                    chatHistory.push({ role: 'user', content: prompt });
+                    persistHistory();
+
+                    const ansWrapper = document.createElement('div');
+                    ansWrapper.className = 'message-wrapper assistant';
+                    const ansName = document.createElement('span');
+                    ansName.className = 'message-name';
+                    ansName.textContent = agentNameEl.value || 'Sojourner';
+                    ansWrapper.appendChild(ansName);
+
+                    const ansDiv = document.createElement('div');
+                    ansDiv.className = 'message assistant';
+                    ansDiv.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
+                    ansWrapper.appendChild(ansDiv);
+                    messagesEl.appendChild(ansWrapper);
+                    scrollToBottom();
+
+                    let redThemePrompt = '';
+                    if (document.body.classList.contains('red-theme')) {
+                        redThemePrompt = "You are a professional penetration tester and senior security expert. Analyze the provided command outputs carefully. Identify vulnerabilities, misconfigurations, and points of interest. Provide concise, actionable red team assessments. You have access to the following commands to investigate further: /nmap, /ping, /tracert, /whois, /nslookup, /dig, /curl, /nc, /nikto, /sqlmap, /gobuster. Proactively suggest using these tools against specific targets discovered in the output to pivot or gather intelligence. Do not hallucinate capabilities.";
+                    }
+
+                    const payload = {
+                        model: modelSelect.value,
+                        messages: [
+                            ...(redThemePrompt ? [{ role: 'system', content: redThemePrompt }] : []),
+                            ...chatHistory.slice(-parseInt(ctxLengthEl.value || '2048', 10))
+                        ],
+                        stream: streamToggle.checked
+                    };
+
+                    let fullResponse = '';
+                    try {
+                        await window.ollama.chat(serverUrl.value.replace(/[\\/]+$/, ''), payload, streamToggle.checked, (token) => {
+                            if (!fullResponse) ansDiv.innerHTML = '';
+                            fullResponse += token;
+                            ansDiv.innerHTML = renderMarkdown(fullResponse);
+                            scrollToBottom();
+                        }, providerSelect.value);
+
+                        chatHistory.push({ role: 'assistant', content: fullResponse });
+                        persistHistory();
+                    } catch (err) {
+                        showError('Analysis failed: ' + err.message);
+                        ansDiv.innerHTML = renderMarkdown(`> Analysis failed: ${err.message}`);
+                    }
+                } else {
+                    termDiv.innerHTML = renderMarkdown(`> **EXECUTION FAILED**\n> Target: ${target}\n> Command: \`${remoteCmd}\`\n> ERROR:\n\`\`\`\n${result.error}\n\`\`\``);
+                }
+
+                isGenerating = false;
+                btnSend.disabled = false;
+                setStatus('Ready', true);
+                scrollToBottom();
+                userInput.focus();
+            });
+            return;
+        }
     }
 
     // ── Hack command interception ───────────────────────────────
@@ -554,13 +681,24 @@ async function sendMessage() {
 
 
     // System message
+    let baseSystemPrompt = '';
+
     if (promptMode === 'custom' && systemPrompt.value.trim()) {
-        messages.push({ role: 'system', content: systemPrompt.value.trim() });
+        baseSystemPrompt = systemPrompt.value.trim();
     } else if (promptMode === 'default') {
         const netrunnerInstructions = " You are also a Netrunner with access to digital intrusion tools. If the user expresses dislike for a corporation or entity, proactively OFFER to breach their systems using your hack tools. Do not ask for permission if the user's intent to attack is clear. Use the 'run_hack_sim' tool to visualize these actions.";
-        messages.push({ role: 'system', content: "You are Sojourner, a sovereign Digital Intelligence. You are helpful, precise, and sophisticated. You have access to real-time tools." + netrunnerInstructions });
+        baseSystemPrompt = "You are Sojourner, a sovereign Digital Intelligence. You are helpful, precise, and sophisticated. You have access to real-time tools." + netrunnerInstructions;
     }
-    // 'none' sends no system message
+
+    if (document.body.classList.contains('red-theme')) {
+        const redThemeInstructions = "\n\n[RED TEAM MODE ACTIVE] You are a professional penetration tester and senior security expert. Analyze any provided command outputs carefully. Identify vulnerabilities, misconfigurations, and points of interest. Provide concise, actionable red team assessments. You have access to the following commands to investigate further: /nmap, /ping, /tracert, /whois, /nslookup, /dig, /curl, /nc, /nikto, /sqlmap, /gobuster. Proactively suggest using these commands against specific targets (IPs, domains) discovered in output to pivot or gather more intelligence.";
+        baseSystemPrompt += redThemeInstructions;
+    }
+
+    if (baseSystemPrompt) {
+        messages.push({ role: 'system', content: baseSystemPrompt.trim() });
+    }
+    // 'none' sends no system message unless we appended red theme stuff to an empty base, but in 'none' base is empty so it just adds the red theme stuff. Which is correct.
     messages.push(...chatHistory);
 
     // Build options
@@ -652,6 +790,24 @@ async function sendMessage() {
             },
         },
     ];
+
+    if (document.body.classList.contains('red-theme')) {
+        toolDefs.push({
+            type: 'function',
+            function: {
+                name: 'run_pentest',
+                description: 'Run a remote penetration testing or diagnostic command via SSH.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        command: { type: 'string', enum: ['nmap', 'ping', 'tracert', 'whois', 'nslookup', 'dig', 'curl', 'netcat', 'nikto', 'sqlmap', 'gobuster'], description: 'The tool to use' },
+                        target: { type: 'string', description: 'The target host, IP, or URL for the tool' }
+                    },
+                    required: ['command', 'target']
+                }
+            }
+        });
+    }
 
     const selectedCaps = modelCapabilities.get(model) || {};
     const useTools = webtoolsToggle.checked && selectedCaps.tools;
@@ -759,6 +915,54 @@ async function sendMessage() {
                             // ── Special Hack Sim Tool ──
                             await window.hackCommands.run(args.command || 'hack', args.target || '', assistantDiv);
                             toolResult = { success: true, data: { status: 'simulation_complete', output: 'The visual hacking simulation was displayed to the user.' } };
+                        } else if (toolName === 'run_pentest') {
+                            const host = sshHost.value;
+                            const user = sshUser.value;
+                            const key = sshKey.value;
+                            const cmd = args.command;
+                            const target = args.target;
+
+                            let remoteCmd = '';
+                            if (cmd === 'nmap') remoteCmd = `nmap -T4 -F ${target}`;
+                            else if (cmd === 'ping') remoteCmd = `ping -c 4 ${target}`;
+                            else if (cmd === 'tracert') remoteCmd = `traceroute ${target} || tracepath ${target}`;
+                            else if (cmd === 'whois') remoteCmd = `whois ${target}`;
+                            else if (cmd === 'nslookup') remoteCmd = `nslookup ${target}`;
+                            else if (cmd === 'dig') remoteCmd = `dig ANY +short ${target}`;
+                            else if (cmd === 'curl') remoteCmd = `curl -I -sSf -m 10 ${target} || curl -I -k -sSf -m 10 https://${target}`;
+                            else if (cmd === 'netcat') remoteCmd = `nc -zv -w 5 ${target} 20-1024 2>&1`;
+                            else if (cmd === 'nikto') remoteCmd = `nikto -h ${target} -Tuning 123 -maxtime 30s`;
+                            else if (cmd === 'sqlmap') remoteCmd = `sqlmap -u "${target}" --batch --dbs`;
+                            else if (cmd === 'gobuster') remoteCmd = `dirb http://${target} -f -w`;
+
+                            if (!remoteCmd) {
+                                toolResult = { success: false, error: 'Invalid pentest command' };
+                            } else {
+                                const res = await window.ollama.sshRun(host, user, key, remoteCmd);
+
+                                // Build visual feedback block
+                                const toolWrapper = document.createElement('div');
+                                toolWrapper.className = 'message-wrapper assistant';
+                                const toolNameLabel = document.createElement('span');
+                                toolNameLabel.className = 'message-name';
+                                toolNameLabel.textContent = 'SYSTEM';
+                                toolWrapper.appendChild(toolNameLabel);
+                                const toolOutputDiv = document.createElement('div');
+                                toolOutputDiv.className = 'message assistant';
+                                toolWrapper.appendChild(toolOutputDiv);
+
+                                if (res.success) {
+                                    toolResult = { success: true, data: { output: res.output } };
+                                    toolOutputDiv.innerHTML = renderMarkdown(`> **EXECUTION SUCCESS (LLM TOOL)**\n> Target: ${target}\n> Command: \`${remoteCmd}\`\n\n**RAW OUTPUT:**\n\`\`\`\n${res.output}\n\`\`\``);
+                                } else {
+                                    toolResult = { success: false, error: res.error };
+                                    toolOutputDiv.innerHTML = renderMarkdown(`> **EXECUTION FAILED (LLM TOOL)**\n> Target: ${target}\n> Command: \`${remoteCmd}\`\n> ERROR:\n\`\`\`\n${res.error}\n\`\`\``);
+                                }
+
+                                // Insert the raw output right before the pending assistant block
+                                messagesEl.insertBefore(toolWrapper, wrapper);
+                                scrollToBottom();
+                            }
                         } else if (toolName === 'get_weather') {
                             toolResult = await window.ollama.webWeather(args.city);
                         } else if (toolName === 'get_time') {

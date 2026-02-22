@@ -291,6 +291,31 @@ ipcMain.handle('ssh:connect', async (_event, host, username, privateKeyPath) => 
   });
 });
 
+ipcMain.handle('ssh:run', async (_event, host, username, privateKeyPath, remoteCmd) => {
+  return new Promise((resolve) => {
+    let keyArg = '';
+    if (privateKeyPath) {
+      let keyPath = privateKeyPath;
+      if (keyPath.startsWith('~')) {
+        keyPath = path.join(require('os').homedir(), keyPath.slice(1));
+      }
+      keyArg = `-i "${keyPath}"`;
+    }
+
+    const escapedCmd = remoteCmd.replace(/"/g, '\\"');
+    const cmd = `ssh -o BatchMode=yes -o StrictHostKeyChecking=no ${keyArg} ${username}@${host} "${escapedCmd}"`;
+
+    exec(cmd, { timeout: 120000 }, (error, stdout, stderr) => {
+      const output = (stdout + '\n' + stderr).trim();
+      if (error) {
+        resolve({ success: false, error: output || error.message });
+      } else {
+        resolve({ success: true, output });
+      }
+    });
+  });
+});
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1100,
