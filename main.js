@@ -253,6 +253,43 @@ ipcMain.handle('web:search', async (_event, query) => {
   }
 });
 
+// NIST NVD CVE Search
+ipcMain.handle('web:cve', async (_event, query) => {
+  try {
+    const data = await fetchJSON(
+      `https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch=${encodeURIComponent(query)}&resultsPerPage=5`
+    );
+
+    if (!data.vulnerabilities || data.vulnerabilities.length === 0) {
+      return { success: true, data: { message: "No CVEs found for that query." } };
+    }
+
+    const cves = data.vulnerabilities.map(v => {
+      const cve = v.cve;
+      const desc = cve.descriptions?.find(d => d.lang === 'en')?.value || 'No description available';
+      let cvss = 'N/A';
+      if (cve.metrics?.cvssMetricV31?.length > 0) {
+        cvss = cve.metrics.cvssMetricV31[0].cvssData.baseScore + ' (' + cve.metrics.cvssMetricV31[0].cvssData.baseSeverity + ')';
+      } else if (cve.metrics?.cvssMetricV30?.length > 0) {
+        cvss = cve.metrics.cvssMetricV30[0].cvssData.baseScore + ' (' + cve.metrics.cvssMetricV30[0].cvssData.baseSeverity + ')';
+      } else if (cve.metrics?.cvssMetricV2?.length > 0) {
+        cvss = cve.metrics.cvssMetricV2[0].cvssData.baseScore + ' (' + cve.metrics.cvssMetricV2[0].baseSeverity + ')';
+      }
+
+      return {
+        id: cve.id,
+        published: cve.published,
+        cvss_score: cvss,
+        description: desc
+      };
+    });
+
+    return { success: true, data: cves };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 // ── SSH handler ───────────────────────────────────────────────
 const { exec } = require('child_process');
 

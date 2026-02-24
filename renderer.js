@@ -824,6 +824,20 @@ async function sendMessage() {
                 },
             },
         },
+        {
+            type: 'function',
+            function: {
+                name: 'search_cve',
+                description: 'Search for CVEs (Common Vulnerabilities and Exposures) by keyword or phrase. Do not use complex query syntaxes, just normal English product names.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        query: { type: 'string', description: 'The software, vendor, or keyword to search (e.g. "apache tomcat", "wordpress", "microsoft exchange")' },
+                    },
+                    required: ['query'],
+                },
+            },
+        },
     ];
 
     if (document.body.classList.contains('red-theme')) {
@@ -1009,6 +1023,9 @@ async function sendMessage() {
                             toolResult = await window.ollama.webIP(args.address || null);
                         } else if (toolName === 'web_search') {
                             toolResult = await window.ollama.webSearch(args.query);
+                        } else if (toolName === 'search_cve') {
+                            setStatus(`Searching CVE database for "${args.query}"...`, true);
+                            toolResult = await window.ollama.webCVE(args.query);
                         } else {
                             toolResult = { success: false, error: `Unknown tool: ${toolName}` };
                         }
