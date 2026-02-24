@@ -1566,3 +1566,46 @@ textarea:focus {
     transform: translateX(350%);
   }
 }
+
+/* ── Context Progress Bar ──────────────────────────────────────── */
+#context-progress-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  /* Push to the right side of status bar */
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+#context-progress-wrapper.hidden {
+  display: none !important;
+}
+
+#context-progress-track {
+  width: 100px;
+  height: 6px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+#context-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+#context-progress-fill.warning {
+  background: #ffb86c;
+  /* Yellow-orange for approaching limit */
+}
+
+#context-progress-fill.danger {
+  background: var(--danger);
+  /* Red for maxed out */
+}

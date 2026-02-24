@@ -177,6 +177,42 @@ function setStatus(text, connected = false) {
     statusBar.classList.toggle('connected', connected);
 }
 
+function updateContextBar(stats) {
+    try {
+        if (!stats || (!stats.prompt_eval_count && !stats.eval_count)) return;
+
+        const totalTokensUsed = (stats.prompt_eval_count || 0) + (stats.eval_count || 0);
+        const maxCtxStr = ctxLengthEl.value;
+        const maxCtx = parseInt(maxCtxStr, 10);
+
+        if (!isNaN(maxCtx) && maxCtx > 0) {
+            const ctxWrapper = document.getElementById('context-progress-wrapper');
+            const ctxText = document.getElementById('context-progress-text');
+            const ctxFill = document.getElementById('context-progress-fill');
+
+            if (ctxWrapper && ctxText && ctxFill) {
+                ctxWrapper.classList.remove('hidden');
+                ctxText.textContent = `${totalTokensUsed} / ${maxCtx}`;
+
+                let pct = (totalTokensUsed / maxCtx) * 100;
+                if (pct > 100) pct = 100;
+
+                ctxFill.style.width = `${pct}%`;
+
+                // Color coding
+                ctxFill.className = ''; // remove existing
+                if (pct >= 90) {
+                    ctxFill.classList.add('danger');
+                } else if (pct >= 75) {
+                    ctxFill.classList.add('warning');
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('Failed to update context progress:', err);
+    }
+}
+
 function showError(msg) {
     const toast = document.createElement('div');
     toast.className = 'error-toast';
@@ -265,7 +301,15 @@ btnReset.addEventListener('click', async () => {
     }
 });
 
-function scrollToBottom() {
+function scrollToBottom(force = false) {
+    if (!force) {
+        // Only auto-scroll if the user is already near the bottom
+        const threshold = 150; // pixels
+        const position = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight;
+        if (position > threshold) {
+            return; // User has scrolled up, don't force scroll
+        }
+    }
     messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
 }
 
@@ -336,7 +380,7 @@ function addMessageBubble(role, content, duration, images, files) {
     wrapper.appendChild(meta);
 
     messagesEl.appendChild(wrapper);
-    scrollToBottom();
+    scrollToBottom(true);
     return div;
 }
 
@@ -540,31 +584,42 @@ async function sendMessage() {
             termDiv.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
             wrapper.appendChild(termDiv);
             messagesEl.appendChild(wrapper);
-            scrollToBottom();
+            scrollToBottom(true);
 
             const host = sshHost.value;
             const user = sshUser.value;
             const key = sshKey.value;
 
             let remoteCmd = '';
-            if (cmd === '/nmap') remoteCmd = `nmap -T4 -F ${target}`;
-            if (cmd === '/ping') remoteCmd = `ping -c 4 ${target}`;
-            if (cmd === '/tracert') remoteCmd = `traceroute ${target} || tracepath ${target}`;
-            if (cmd === '/whois') remoteCmd = `whois ${target}`;
-            if (cmd === '/nslookup') remoteCmd = `nslookup ${target}`;
-            if (cmd === '/dig') remoteCmd = `dig ANY +short ${target}`;
-            if (cmd === '/curl') remoteCmd = `curl -I -sSf -m 10 ${target} || curl -I -k -sSf -m 10 https://${target}`;
-            if (cmd === '/netcat' || cmd === '/nc') remoteCmd = `nc -zv -w 5 ${target} 20-1024 2>&1`;
-            if (cmd === '/nikto') remoteCmd = `nikto -h ${target} -Tuning 123 -maxtime 30s`;
-            if (cmd === '/sqlmap') remoteCmd = `sqlmap -u "${target}" --batch --dbs`;
-            if (cmd === '/gobuster' || cmd === '/dirb') remoteCmd = `dirb http://${target} -f -w`;
+
+            // Parse target and optional flags from the remaining text
+            // e.g. "scanme.nmap.org -sV -p 22,80" -> target="scanme.nmap.org", customOpts=" -sV -p 22,80"
+            let actualTarget = target;
+            let customOpts = '';
+            const firstSpace = target.indexOf(' ');
+            if (firstSpace !== -1) {
+                actualTarget = target.substring(0, firstSpace);
+                customOpts = target.substring(firstSpace);
+            }
+
+            if (cmd === '/nmap') remoteCmd = `nmap${customOpts || ' -T4 -F'} ${actualTarget}`;
+            else if (cmd === '/ping') remoteCmd = `ping${customOpts || ' -c 4'} ${actualTarget}`;
+            else if (cmd === '/tracert') remoteCmd = `traceroute${customOpts} ${actualTarget} || tracepath${customOpts} ${actualTarget}`;
+            else if (cmd === '/whois') remoteCmd = `whois${customOpts} ${actualTarget}`;
+            else if (cmd === '/nslookup') remoteCmd = `nslookup${customOpts} ${actualTarget}`;
+            else if (cmd === '/dig') remoteCmd = `dig${customOpts || ' ANY +short'} ${actualTarget}`;
+            else if (cmd === '/curl') remoteCmd = `curl${customOpts || ' -I -sSf -m 10'} ${actualTarget} || curl${customOpts || ' -I -k -sSf -m 10'} https://${actualTarget}`;
+            else if (cmd === '/netcat' || cmd === '/nc') remoteCmd = `nc${customOpts || ' -zv -w 5'} ${actualTarget} 20-1024 2>&1`;
+            else if (cmd === '/nikto') remoteCmd = `nikto${customOpts || ' -Tuning 123 -maxtime 30s'} -h ${actualTarget}`;
+            else if (cmd === '/sqlmap') remoteCmd = `sqlmap${customOpts || ' --batch --dbs'} -u "${actualTarget}"`;
+            else if (cmd === '/gobuster' || cmd === '/dirb') remoteCmd = `dirb http://${actualTarget} ${customOpts || '-f -w'}`;
 
             window.ollama.sshRun(host, user, key, remoteCmd).then(async (result) => {
                 setStatus('Command complete. Analyzing...', true);
 
                 if (result.success) {
                     termDiv.innerHTML = renderMarkdown(`> **EXECUTION SUCCESS**\n> Target: ${target}\n> Command: \`${remoteCmd}\`\n\n**RAW OUTPUT:**\n\`\`\`\n${result.output}\n\`\`\``);
-                    scrollToBottom();
+                    scrollToBottom(true);
 
                     const prompt = `I ran the following command during my penetration test: \`${remoteCmd}\`\n\nHere is the raw output:\n\`\`\`\n${result.output}\n\`\`\`\n\nPlease interpret these findings and provide a concise, professional Red Team assessment of this target. Focus on interesting or vulnerable findings. Do not hallucinate data not in the output.`;
 
@@ -601,13 +656,14 @@ async function sendMessage() {
 
                     let fullResponse = '';
                     try {
-                        await window.ollama.chat(serverUrl.value.replace(/[\\/]+$/, ''), payload, streamToggle.checked, (token) => {
+                        const slashStats = await window.ollama.chat(serverUrl.value.replace(/[\\/]+$/, ''), payload, streamToggle.checked, (token) => {
                             if (!fullResponse) ansDiv.innerHTML = '';
                             fullResponse += token;
                             ansDiv.innerHTML = renderMarkdown(fullResponse);
                             scrollToBottom();
                         }, providerSelect.value);
 
+                        updateContextBar(slashStats);
                         chatHistory.push({ role: 'assistant', content: fullResponse });
                         persistHistory();
                     } catch (err) {
@@ -616,6 +672,7 @@ async function sendMessage() {
                     }
                 } else {
                     termDiv.innerHTML = renderMarkdown(`> **EXECUTION FAILED**\n> Target: ${target}\n> Command: \`${remoteCmd}\`\n> ERROR:\n\`\`\`\n${result.error}\n\`\`\``);
+                    scrollToBottom(true);
                 }
 
                 isGenerating = false;
@@ -679,7 +736,7 @@ async function sendMessage() {
         let redThemeInstructions = "\n\n[RED TEAM MODE ACTIVE] You are a professional penetration tester and senior security expert. Analyze any provided command outputs carefully. Identify vulnerabilities, misconfigurations, and points of interest.";
 
         if (useTools) {
-            redThemeInstructions += " YOU CAN DO REAL SCANS: You have been provided with a JSON tool function named `run_pentest`. You MUST use the native tool-calling system to invoke this function with `command` and `target` arguments. NEVER type out `run_pentest` as a text command, bash script, or code block in your chat response. If the user asks you to scan a target, IMMEDIATELY call the `run_pentest` JSON tool. NEVER reply with fake or simulated logs.";
+            redThemeInstructions += " YOU CAN DO REAL SCANS: You have been provided with a JSON tool function named `run_pentest`. You MUST use the native tool-calling system to invoke this function with `command` and `target` arguments.\n\nIMPORTANT: If you need to pass specific flags (like `-sV -p 22`), pass them in the `options` string parameter. If you need root execution, set `use_sudo` to true. Do NOT put flags in the `command` or `target` fields.\n\nNEVER type out `run_pentest` as a text command, bash script, or code block in your chat response. If the user asks you to scan a target, IMMEDIATELY call the `run_pentest` JSON tool. NEVER reply with fake or simulated logs.";
         } else {
             redThemeInstructions += " NOTE: Your current model does NOT support automated tool calling. If the user wants to run a scan (like nmap, ping, whois, etc.), you MUST tell them to type the slash command themselves in the chat (e.g., '/nmap target.com'). Do NOT hallucinate or simulate scan outputs.";
         }
@@ -779,7 +836,9 @@ async function sendMessage() {
                     type: 'object',
                     properties: {
                         command: { type: 'string', enum: ['nmap', 'ping', 'tracert', 'whois', 'nslookup', 'dig', 'curl', 'netcat', 'nikto', 'sqlmap', 'gobuster'], description: 'The tool to use' },
-                        target: { type: 'string', description: 'The target host, IP, or URL for the tool' }
+                        target: { type: 'string', description: 'The target host, IP, or URL for the tool' },
+                        options: { type: 'string', description: 'Optional: Custom flags or arguments to pass to the tool (e.g., "-sV -p 22,80")' },
+                        use_sudo: { type: 'boolean', description: 'Optional: Set to true if this command requires root privileges (sudo)' }
                     },
                     required: ['command', 'target']
                 }
@@ -811,7 +870,7 @@ async function sendMessage() {
     wrapper.appendChild(assistantDiv);
 
     messagesEl.appendChild(wrapper);
-    scrollToBottom();
+    scrollToBottom(true);
 
     setGenerating(true);
     setStatus('Generating…', true);
@@ -819,6 +878,7 @@ async function sendMessage() {
 
     let fullResponse = '';
     const startTime = Date.now();
+    let finalStats = null;
 
     try {
         // const useTools is now defined above
@@ -837,6 +897,7 @@ async function sendMessage() {
 
             chatHistory.push({ role: 'assistant', content: fullResponse });
             persistHistory();
+            finalStats = stats;
             const elapsed = Date.now() - startTime;
 
             let tokensPerSec = null;
@@ -865,6 +926,7 @@ async function sendMessage() {
             let result = await window.ollama.chat(base, initialPayload, false, (token) => {
                 fullResponse += token;
             }, providerSelect.value);
+            scrollToBottom(true);
             let toolCallRound = 0;
             const MAX_TOOL_ROUNDS = 5;
 
@@ -884,7 +946,7 @@ async function sendMessage() {
 
                     setStatus(`🔧 Calling ${toolName}…`, true);
                     assistantDiv.innerHTML = `<div class="tool-status">🔧 Calling <strong>${toolName}</strong>(${JSON.stringify(args)})…</div>`;
-                    scrollToBottom();
+                    scrollToBottom(true);
 
                     let toolResult;
                     try {
@@ -896,17 +958,20 @@ async function sendMessage() {
                             const target = args.target;
 
                             let remoteCmd = '';
-                            if (cmd === 'nmap') remoteCmd = `nmap -T4 -F ${target}`;
-                            else if (cmd === 'ping') remoteCmd = `ping -c 4 ${target}`;
-                            else if (cmd === 'tracert') remoteCmd = `traceroute ${target} || tracepath ${target}`;
-                            else if (cmd === 'whois') remoteCmd = `whois ${target}`;
-                            else if (cmd === 'nslookup') remoteCmd = `nslookup ${target}`;
-                            else if (cmd === 'dig') remoteCmd = `dig ANY +short ${target}`;
-                            else if (cmd === 'curl') remoteCmd = `curl -I -sSf -m 10 ${target} || curl -I -k -sSf -m 10 https://${target}`;
-                            else if (cmd === 'netcat') remoteCmd = `nc -zv -w 5 ${target} 20-1024 2>&1`;
-                            else if (cmd === 'nikto') remoteCmd = `nikto -h ${target} -Tuning 123 -maxtime 30s`;
-                            else if (cmd === 'sqlmap') remoteCmd = `sqlmap -u "${target}" --batch --dbs`;
-                            else if (cmd === 'gobuster') remoteCmd = `dirb http://${target} -f -w`;
+                            const customOpts = args.options ? ` ${args.options.trim()}` : '';
+                            const prefix = args.use_sudo ? 'sudo ' : '';
+
+                            if (cmd === 'nmap') remoteCmd = `${prefix}nmap${customOpts || ' -T4 -F'} ${target}`;
+                            else if (cmd === 'ping') remoteCmd = `${prefix}ping${customOpts || ' -c 4'} ${target}`;
+                            else if (cmd === 'tracert') remoteCmd = `${prefix}traceroute${customOpts} ${target} || ${prefix}tracepath${customOpts} ${target}`;
+                            else if (cmd === 'whois') remoteCmd = `${prefix}whois${customOpts} ${target}`;
+                            else if (cmd === 'nslookup') remoteCmd = `${prefix}nslookup${customOpts} ${target}`;
+                            else if (cmd === 'dig') remoteCmd = `${prefix}dig${customOpts || ' ANY +short'} ${target}`;
+                            else if (cmd === 'curl') remoteCmd = `${prefix}curl${customOpts || ' -I -sSf -m 10'} ${target} || ${prefix}curl${customOpts || ' -I -k -sSf -m 10'} https://${target}`;
+                            else if (cmd === 'netcat') remoteCmd = `${prefix}nc${customOpts || ' -zv -w 5'} ${target} 20-1024 2>&1`;
+                            else if (cmd === 'nikto') remoteCmd = `${prefix}nikto${customOpts || ' -Tuning 123 -maxtime 30s'} -h ${target}`;
+                            else if (cmd === 'sqlmap') remoteCmd = `${prefix}sqlmap${customOpts || ' --batch --dbs'} -u "${target}"`;
+                            else if (cmd === 'gobuster') remoteCmd = `${prefix}dirb http://${target} ${customOpts || '-f -w'}`;
 
                             if (!remoteCmd) {
                                 toolResult = { success: false, error: 'Invalid pentest command' };
@@ -934,7 +999,7 @@ async function sendMessage() {
 
                                 // Insert the raw output right before the pending assistant block
                                 messagesEl.insertBefore(toolWrapper, wrapper);
-                                scrollToBottom();
+                                scrollToBottom(true);
                             }
                         } else if (toolName === 'get_weather') {
                             toolResult = await window.ollama.webWeather(args.city);
@@ -989,6 +1054,13 @@ async function sendMessage() {
 
             chatHistory.push({ role: 'assistant', content: fullResponse });
             persistHistory();
+
+            // Accumulate token usage across all tool rounds instead of overwriting
+            if (!finalStats) finalStats = {};
+            if (result) {
+                finalStats.eval_count = (finalStats.eval_count || 0) + (result.eval_count || 0);
+                finalStats.prompt_eval_count = (finalStats.prompt_eval_count || 0) + (result.prompt_eval_count || 0);
+            }
             const elapsed = Date.now() - startTime;
 
             let tokensPerSec = null;
@@ -1032,6 +1104,7 @@ async function sendMessage() {
     } finally {
         setGenerating(false);
         hideLoader();
+        updateContextBar(finalStats);
     }
 }
 
