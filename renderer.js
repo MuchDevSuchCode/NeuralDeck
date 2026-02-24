@@ -425,6 +425,18 @@ async function sendMessage() {
         clearWelcome();
         userInput.value = '';
         userInput.style.height = 'auto';
+
+        // Clear chat history so prior hallucinations do not carry over
+        chatHistory = [];
+        persistHistory();
+
+        // Remove all previous chat bubbles visually (optional, but good for a clean slate)
+        Array.from(messagesEl.children).forEach(child => {
+            if (!child.classList.contains('welcome-message')) {
+                child.remove();
+            }
+        });
+
         addMessageBubble('user', text);
 
         document.body.classList.add('red-theme');
@@ -575,7 +587,7 @@ async function sendMessage() {
 
                     let redThemePrompt = '';
                     if (document.body.classList.contains('red-theme')) {
-                        redThemePrompt = "You are a professional penetration tester and senior security expert. Analyze the provided command outputs carefully. Identify vulnerabilities, misconfigurations, and points of interest. Provide concise, actionable red team assessments. You have access to the following commands to investigate further: /nmap, /ping, /tracert, /whois, /nslookup, /dig, /curl, /nc, /nikto, /sqlmap, /gobuster. Proactively suggest using these tools against specific targets discovered in the output to pivot or gather intelligence. Do not hallucinate capabilities.";
+                        redThemePrompt = "You are a professional penetration tester and senior security expert. Analyze the provided command outputs carefully. Identify vulnerabilities, misconfigurations, and points of interest. Provide concise, actionable red team assessments. NEVER pretend or hallucinate scans or outputs. Do not output fake logs. Act strictly as an analyst of the real data provided.";
                     }
 
                     const payload = {
@@ -614,35 +626,6 @@ async function sendMessage() {
             });
             return;
         }
-    }
-
-    // ── Hack command interception ───────────────────────────────
-    if (window.hackCommands && window.hackCommands.isCommand(text)) {
-        clearWelcome();
-        userInput.value = '';
-        userInput.style.height = 'auto';
-        addMessageBubble('user', text);
-
-        const wrapper = document.createElement('div');
-        wrapper.className = 'message-wrapper assistant';
-        const nameLabel = document.createElement('span');
-        nameLabel.className = 'message-name';
-        nameLabel.textContent = agentNameEl.value || 'Sojourner';
-        wrapper.appendChild(nameLabel);
-        const hackDiv = document.createElement('div');
-        hackDiv.className = 'message assistant';
-        wrapper.appendChild(hackDiv);
-        messagesEl.appendChild(wrapper);
-
-        isGenerating = true;
-        btnSend.disabled = true;
-        setStatus('Executing command…');
-        await window.hackCommands.tryRun(text, hackDiv);
-        isGenerating = false;
-        btnSend.disabled = false;
-        setStatus('Command complete', true);
-        userInput.focus();
-        return;
     }
 
     const model = modelSelect.value;
@@ -686,12 +669,21 @@ async function sendMessage() {
     if (promptMode === 'custom' && systemPrompt.value.trim()) {
         baseSystemPrompt = systemPrompt.value.trim();
     } else if (promptMode === 'default') {
-        const netrunnerInstructions = " You are also a Netrunner with access to digital intrusion tools. If the user expresses dislike for a corporation or entity, proactively OFFER to breach their systems using your hack tools. Do not ask for permission if the user's intent to attack is clear. Use the 'run_hack_sim' tool to visualize these actions.";
-        baseSystemPrompt = "You are Sojourner, a sovereign Digital Intelligence. You are helpful, precise, and sophisticated. You have access to real-time tools." + netrunnerInstructions;
+        baseSystemPrompt = "You are Sojourner, a sovereign Digital Intelligence. You are helpful, precise, and sophisticated. You have access to real-time tools.";
     }
 
+    const selectedCaps = modelCapabilities.get(model) || {};
+    const useTools = webtoolsToggle.checked && selectedCaps.tools;
+
     if (document.body.classList.contains('red-theme')) {
-        const redThemeInstructions = "\n\n[RED TEAM MODE ACTIVE] You are a professional penetration tester and senior security expert. Analyze any provided command outputs carefully. Identify vulnerabilities, misconfigurations, and points of interest. Provide concise, actionable red team assessments. You have access to the following commands to investigate further: /nmap, /ping, /tracert, /whois, /nslookup, /dig, /curl, /nc, /nikto, /sqlmap, /gobuster. Proactively suggest using these commands against specific targets (IPs, domains) discovered in output to pivot or gather more intelligence.";
+        let redThemeInstructions = "\n\n[RED TEAM MODE ACTIVE] You are a professional penetration tester and senior security expert. Analyze any provided command outputs carefully. Identify vulnerabilities, misconfigurations, and points of interest.";
+
+        if (useTools) {
+            redThemeInstructions += " YOU CAN DO REAL SCANS: You have been provided with a JSON tool function named `run_pentest`. You MUST use the native tool-calling system to invoke this function with `command` and `target` arguments. NEVER type out `run_pentest` as a text command, bash script, or code block in your chat response. If the user asks you to scan a target, IMMEDIATELY call the `run_pentest` JSON tool. NEVER reply with fake or simulated logs.";
+        } else {
+            redThemeInstructions += " NOTE: Your current model does NOT support automated tool calling. If the user wants to run a scan (like nmap, ping, whois, etc.), you MUST tell them to type the slash command themselves in the chat (e.g., '/nmap target.com'). Do NOT hallucinate or simulate scan outputs.";
+        }
+
         baseSystemPrompt += redThemeInstructions;
     }
 
@@ -719,21 +711,7 @@ async function sendMessage() {
 
     // ── Tool definitions ────────────────────────────────────────
     const toolDefs = [
-        {
-            type: 'function',
-            function: {
-                name: 'run_hack_sim',
-                description: 'Run a simulated hacking sequence in the chat. Use this when the user wants to hack something or challenges a corporation. This creates a visual effect.',
-                parameters: {
-                    type: 'object',
-                    properties: {
-                        command: { type: 'string', enum: ['hack', 'scan', 'trace', 'nuke'], description: 'The type of hack to run' },
-                        target: { type: 'string', description: 'The target name or IP' }
-                    },
-                    required: ['command']
-                }
-            }
-        },
+
         {
             type: 'function',
             function: {
@@ -809,8 +787,7 @@ async function sendMessage() {
         });
     }
 
-    const selectedCaps = modelCapabilities.get(model) || {};
-    const useTools = webtoolsToggle.checked && selectedCaps.tools;
+
 
     const payload = { model, messages, options, stream: useStream };
     if (useTools) {
@@ -911,11 +888,7 @@ async function sendMessage() {
 
                     let toolResult;
                     try {
-                        if (toolName === 'run_hack_sim') {
-                            // ── Special Hack Sim Tool ──
-                            await window.hackCommands.run(args.command || 'hack', args.target || '', assistantDiv);
-                            toolResult = { success: true, data: { status: 'simulation_complete', output: 'The visual hacking simulation was displayed to the user.' } };
-                        } else if (toolName === 'run_pentest') {
+                        if (toolName === 'run_pentest') {
                             const host = sshHost.value;
                             const user = sshUser.value;
                             const key = sshKey.value;

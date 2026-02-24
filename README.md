@@ -10,8 +10,7 @@ A sleek Electron desktop client for [Ollama](https://ollama.com) and [LM Studio]
   <img src="screenshot1.png" alt="Neural Deck" width="600" />
   <img src="screenshot2.png" alt="Neural Deck Chat" width="600" />
   <img src="screenshot3.png" alt="Neural Deck Settings" width="600" />
-  <img src="screenshot4.png" alt="Neural Deck Hack Sim" width="600" />
-  <img src="screenshot5.png" alt="Neural Deck Hack Output" width="600" />
+
 </p>
 
 ## Features
@@ -23,7 +22,7 @@ A sleek Electron desktop client for [Ollama](https://ollama.com) and [LM Studio]
 - **Vision model support** — attach images and use vision-capable models for image analysis
 - **Image & file attachments** — attach images (base64 for vision models) or text files to your prompts; attached files display as chips in the chat history
 - **Emoji picker** — built-in emoji panel with 8 categorized tabs and search
-- **Hack simulation** — built-in slash commands that play animated terminal-style hacking sequences
+
 - **System prompt modes** — Default (Sojourner persona), None, or Custom with your own prompt
 - **Smart Port Switching** — automatically swaps ports (11434 ↔ 1234) when switching providers while preserving your custom hostname
 - **System Restore** — "Reset Protocols" button to wipe settings and restore factory defaults
@@ -33,7 +32,7 @@ A sleek Electron desktop client for [Ollama](https://ollama.com) and [LM Studio]
 - **Configurable parameters** — temperature, max tokens, context length, chunk size
 - **Agent naming** — customize the assistant's display name (default: Sojourner)
 - **Auto-persistence** — all settings saved automatically to a local config file
-- **Neural Interface** — cyberpunk/terminal aesthetic with glassmorphism, scanlines, and animated "hack" style loaders
+- **Neural Interface** — cyberpunk/terminal aesthetic with glassmorphism, scanlines, and animated terminal-style loaders
 
 ## Prerequisites
 
@@ -65,7 +64,7 @@ The app will auto-connect to `http://localhost:11434` and fetch available models
 5. **Ask real-world questions** — models with 🔧 can fetch live weather, time, IP info, and web search results
 6. **Attach files** — use the 📷 (image) or 📎 (file) buttons next to the input
 7. **Emoji** — click the 😊 smiley button to open the emoji picker; click any emoji to insert it at your cursor
-8. **Hack sim** — type a `/` command to run a simulated hacking sequence (see below)
+
 9. **Tune parameters** — open the settings sidebar with the gear icon
 10. **System Restore** — use the "Reset Protocols" button at the bottom of settings to factory reset the app
 
@@ -103,28 +102,7 @@ All APIs are **free and require no API keys**.
 
 > **Note:** Models without tool support (no 🔧 icon) work normally — tool definitions are only sent to capable models. Tool support is auto-detected via Ollama's `/api/show` endpoint.
 
-## Hack Simulation
 
-Type slash commands in the chat input to trigger animated, Shadowrun-themed hacking sequences. These bypass the LLM entirely — no model selection required.
-
-| Command | Description |
-|---------|-------------|
-| `/hack <target>` | Multi-phase corporate host breach — recon, ICE bypass, data extraction, cleanup |
-| `/scan [target]` | Network reconnaissance — port scanning, service enumeration, host fingerprinting |
-| `/trace <ip>` | Trace a Matrix datatrail hop-by-hop to a physical location |
-| `/decrypt <file>` | Cryptanalysis and brute-force decryption of an encrypted payload |
-| `/nuke <target>` | Data bombardment attack — multi-wave assault, ICE collapse, host destruction |
-| `/help` | List all available commands |
-
-All arguments are optional — random Shadowrun-themed targets are generated when omitted. Every run is randomized with different megacorps, ICE types, ports, files, and locations.
-
-**Animation features:**
-- Character-by-character typing effects
-- Animated progress bars (`[████░░░░░░] 42%`)
-- Scrolling hex dumps
-- Spinning braille-character indicators
-- Color-coded status lines (`[OK]` / `[WARN]` / `[FAIL]`)
-- Blinking alert text for critical events
 
 ## System Prompt
 
@@ -166,7 +144,7 @@ neural-deck/
 ├── main.js            # Electron main process (window, IPC, file dialogs, crypto, web APIs)
 ├── preload.js         # Bridge between main & renderer (Ollama API, tool detection, history IPC)
 ├── renderer.js        # Frontend logic (chat, tool calling, markdown, attachments, emoji, history)
-├── hack-commands.js   # Simulated hacking command engine & animations
+
 ├── index.html         # App layout & structure
 ├── styles.css         # Terminal-themed styling
 ├── ndlogo.png         # App logo (welcome screen)
