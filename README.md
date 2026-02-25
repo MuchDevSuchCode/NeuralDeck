@@ -86,6 +86,11 @@ Settings are auto-saved to `<userData>/config.json` and restored on launch:
 | Prompt Mode | `default` | `default`, `none`, or `custom` |
 | History Mode | `memory` | `memory` or `disk` |
 | Encrypt History | `false` | AES-256-GCM encryption for disk history |
+| GPU Layers | `-1` | Layers offloaded to GPU (`num_gpu`). -1 = all, 0 = CPU only |
+| Top-K | `40` | Limits token pool per step (`top_k`). Lower = more focused |
+| Top-P | `0.90` | Nucleus sampling threshold (`top_p`). Lower = narrower |
+| Repeat Penalty | `1.10` | Penalize repeated tokens (`repeat_penalty`). Higher = less repetitive |
+| Seed | *(empty)* | Fixed seed for reproducible outputs. Empty = random |
 
 Use the **Default Settings** button at the bottom of the Settings sidebar to restore factory defaults.
 
@@ -146,7 +151,7 @@ Target specific platforms with `npx electron-builder --win` or `npx electron-bui
 
 | Mode | Behavior |
 |------|----------|
-| **Default** | Theme-aware: Sojourner persona (Neural Deck) or professional assistant (Corpo/Corpo Dark) |
+| **Default** | Theme-aware: Lumen persona (Corpo/Corpo Dark) or Sojourner persona (Neural Deck) |
 | **None** | No system prompt sent; model runs with base behavior |
 | **Custom** | Textarea for your own prompt |
 

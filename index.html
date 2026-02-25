@@ -126,46 +126,86 @@
         <p class="param-hint">Allow 🔧 models to call web APIs (weather, time, search). Off = local only</p>
       </div>
 
-      <h2>History</h2>
+      <details id="advanced-section">
+        <summary>
+          <h2 style="display:inline; cursor:pointer;">Advanced</h2>
+        </summary>
 
-      <div class="param-group">
-        <label for="history-mode">History Storage</label>
-        <select id="history-mode">
-          <option value="memory">Memory</option>
-          <option value="disk">Disk</option>
-        </select>
-        <p class="param-hint">Memory: lost on close. Disk: persisted locally</p>
-      </div>
+        <div class="param-group">
+          <label for="gpu-layers">GPU Layers</label>
+          <input type="number" id="gpu-layers" min="-1" max="999" value="-1" />
+          <p class="param-hint">Layers offloaded to GPU. -1 = all, 0 = CPU only</p>
+        </div>
 
-      <div class="param-group toggle-group" id="encrypt-group" style="display:none;">
-        <label for="encrypt-toggle">Encrypt History</label>
-        <label class="toggle-switch">
-          <input type="checkbox" id="encrypt-toggle" />
-          <span class="toggle-slider"></span>
-        </label>
-        <p class="param-hint">AES-256-GCM encryption with your passphrase</p>
-      </div>
+        <div class="param-group">
+          <label for="top-k">Top-K <span id="topk-value" class="param-value">40</span></label>
+          <input type="range" id="top-k" min="1" max="200" step="1" value="40" />
+          <div class="range-labels"><span>Focused</span><span>Diverse</span></div>
+        </div>
 
-      <div class="param-group">
-        <label for="chunk-size">Chunk Size</label>
-        <input type="number" id="chunk-size" min="1" max="4096" value="512" />
-        <p class="param-hint">Batch size for prompt processing (num_batch)</p>
-      </div>
+        <div class="param-group">
+          <label for="top-p">Top-P <span id="topp-value" class="param-value">0.90</span></label>
+          <input type="range" id="top-p" min="0" max="1" step="0.01" value="0.9" />
+          <div class="range-labels"><span>Narrow</span><span>Wide</span></div>
+        </div>
 
-      <div class="param-group">
-        <label for="prompt-mode">System Prompt</label>
-        <select id="prompt-mode">
-          <option value="default">Default</option>
-          <option value="none">None</option>
-          <option value="custom">Custom</option>
-        </select>
-        <p class="param-hint">Default: Sojourner persona. Custom: your own prompt</p>
-      </div>
+        <div class="param-group">
+          <label for="repeat-penalty">Repeat Penalty <span id="rp-value" class="param-value">1.10</span></label>
+          <input type="range" id="repeat-penalty" min="1" max="2" step="0.05" value="1.1" />
+          <div class="range-labels"><span>Allow</span><span>Penalize</span></div>
+        </div>
 
-      <div class="param-group" id="custom-prompt-group" style="display:none;">
-        <label for="system-prompt">Custom Prompt</label>
-        <textarea id="system-prompt" rows="6" placeholder="Enter your custom system prompt…"></textarea>
-      </div>
+        <div class="param-group">
+          <label for="seed">Seed</label>
+          <input type="number" id="seed" min="0" max="999999999" value="" placeholder="Random (empty)" />
+          <p class="param-hint">Set a fixed seed for reproducible outputs</p>
+        </div>
+      </details>
+
+      <details id="history-section">
+        <summary>
+          <h2 style="display:inline; cursor:pointer;">Prompt / History</h2>
+        </summary>
+
+        <div class="param-group">
+          <label for="history-mode">History Storage</label>
+          <select id="history-mode">
+            <option value="memory">Memory</option>
+            <option value="disk">Disk</option>
+          </select>
+          <p class="param-hint">Memory: lost on close. Disk: persisted locally</p>
+        </div>
+
+        <div class="param-group toggle-group" id="encrypt-group" style="display:none;">
+          <label for="encrypt-toggle">Encrypt History</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="encrypt-toggle" />
+            <span class="toggle-slider"></span>
+          </label>
+          <p class="param-hint">AES-256-GCM encryption with your passphrase</p>
+        </div>
+
+        <div class="param-group">
+          <label for="chunk-size">Chunk Size</label>
+          <input type="number" id="chunk-size" min="1" max="4096" value="512" />
+          <p class="param-hint">Batch size for prompt processing (num_batch)</p>
+        </div>
+
+        <div class="param-group">
+          <label for="prompt-mode">System Prompt</label>
+          <select id="prompt-mode">
+            <option value="default">Default</option>
+            <option value="none">None</option>
+            <option value="custom">Custom</option>
+          </select>
+          <p class="param-hint">Default: Lumen persona. Custom: your own prompt</p>
+        </div>
+
+        <div class="param-group" id="custom-prompt-group" style="display:none;">
+          <label for="system-prompt">Custom Prompt</label>
+          <textarea id="system-prompt" rows="6" placeholder="Enter your custom system prompt…"></textarea>
+        </div>
+      </details>
 
       <div id="ssh-config-group" style="display:none;">
         <h2>SSH Configuration</h2>

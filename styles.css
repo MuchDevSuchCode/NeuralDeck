@@ -427,6 +427,24 @@ select option {
   border-bottom: 1px solid var(--border);
 }
 
+#sidebar details summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+#sidebar details summary::-webkit-details-marker {
+  display: none;
+}
+
+#sidebar details summary h2::after {
+  content: ' ▸';
+}
+
+#sidebar details[open] summary h2::after {
+  content: ' ▾';
+}
+
 /* ── Param Groups ───────────────────────────────────────────────── */
 .param-group {
   display: flex;

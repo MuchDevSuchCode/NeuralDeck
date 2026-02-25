@@ -19,6 +19,14 @@ const webtoolsToggle = $('#webtools-toggle');
 const chunkSizeEl = $('#chunk-size');
 const agentNameEl = $('#agent-name');
 const promptModeEl = $('#prompt-mode');
+const gpuLayersEl = $('#gpu-layers');
+const topKSlider = $('#top-k');
+const topKValue = $('#topk-value');
+const topPSlider = $('#top-p');
+const topPValue = $('#topp-value');
+const repeatPenaltySlider = $('#repeat-penalty');
+const rpValue = $('#rp-value');
+const seedEl = $('#seed');
 const customPromptGroup = $('#custom-prompt-group');
 const systemPrompt = $('#system-prompt');
 const messagesEl = $('#messages');
@@ -86,7 +94,12 @@ const DEFAULT_SETTINGS = {
     sshUser: '',
     sshKey: '',
     isRedTheme: false,
-    theme: 'corpo'
+    theme: 'corpo',
+    gpuLayers: -1,
+    topK: 40,
+    topP: 0.9,
+    repeatPenalty: 1.1,
+    seed: ''
 };
 
 // ... existing code ...
@@ -325,6 +338,14 @@ btnReset.addEventListener('click', async () => {
         systemPrompt.value = DEFAULT_SETTINGS.systemPrompt;
         promptModeEl.value = DEFAULT_SETTINGS.promptMode;
         customPromptGroup.style.display = 'none';
+        gpuLayersEl.value = DEFAULT_SETTINGS.gpuLayers;
+        topKSlider.value = DEFAULT_SETTINGS.topK;
+        topKValue.textContent = DEFAULT_SETTINGS.topK;
+        topPSlider.value = DEFAULT_SETTINGS.topP;
+        topPValue.textContent = DEFAULT_SETTINGS.topP.toFixed(2);
+        repeatPenaltySlider.value = DEFAULT_SETTINGS.repeatPenalty;
+        rpValue.textContent = DEFAULT_SETTINGS.repeatPenalty.toFixed(2);
+        seedEl.value = DEFAULT_SETTINGS.seed;
 
         historyModeEl.value = DEFAULT_SETTINGS.historyMode;
         encryptToggle.checked = DEFAULT_SETTINGS.encryptHistory;
@@ -814,6 +835,21 @@ async function sendMessage() {
 
     const chunkSize = parseInt(chunkSizeEl.value, 10);
     if (!isNaN(chunkSize) && chunkSize > 0) options.num_batch = chunkSize;
+
+    const gpuLayers = parseInt(gpuLayersEl.value, 10);
+    if (!isNaN(gpuLayers)) options.num_gpu = gpuLayers;
+
+    const topK = parseInt(topKSlider.value, 10);
+    if (!isNaN(topK)) options.top_k = topK;
+
+    const topP = parseFloat(topPSlider.value);
+    if (!isNaN(topP)) options.top_p = topP;
+
+    const rp = parseFloat(repeatPenaltySlider.value);
+    if (!isNaN(rp)) options.repeat_penalty = rp;
+
+    const seedVal = parseInt(seedEl.value, 10);
+    if (!isNaN(seedVal) && seedVal >= 0) options.seed = seedVal;
 
     const useStream = streamToggle.checked;
 
@@ -1591,7 +1627,12 @@ function gatherSettings() {
         sshUser: sshUser.value,
         sshKey: sshKey.value,
         isRedTheme: document.body.classList.contains('red-theme'),
-        theme: themeSelect.value
+        theme: themeSelect.value,
+        gpuLayers: gpuLayersEl.value,
+        topK: topKSlider.value,
+        topP: topPSlider.value,
+        repeatPenalty: repeatPenaltySlider.value,
+        seed: seedEl.value
     };
 }
 
@@ -1611,6 +1652,10 @@ tempSlider.addEventListener('input', autoSave);
 streamToggle.addEventListener('change', autoSave);
 webtoolsToggle.addEventListener('change', autoSave);
 modelSelect.addEventListener('change', autoSave);
+[gpuLayersEl, seedEl].forEach(el => el.addEventListener('input', autoSave));
+topKSlider.addEventListener('input', () => { topKValue.textContent = topKSlider.value; autoSave(); });
+topPSlider.addEventListener('input', () => { topPValue.textContent = parseFloat(topPSlider.value).toFixed(2); autoSave(); });
+repeatPenaltySlider.addEventListener('input', () => { rpValue.textContent = parseFloat(repeatPenaltySlider.value).toFixed(2); autoSave(); });
 
 // Auto-switch port when provider changes (preserves hostname)
 providerSelect.addEventListener('change', () => {
@@ -1703,6 +1748,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (cfg.sshHost) sshHost.value = cfg.sshHost;
     if (cfg.sshUser) sshUser.value = cfg.sshUser;
     if (cfg.sshKey) sshKey.value = cfg.sshKey;
+    if (cfg.gpuLayers !== undefined) gpuLayersEl.value = cfg.gpuLayers;
+    if (cfg.topK !== undefined) { topKSlider.value = cfg.topK; topKValue.textContent = cfg.topK; }
+    if (cfg.topP !== undefined) { topPSlider.value = cfg.topP; topPValue.textContent = parseFloat(cfg.topP).toFixed(2); }
+    if (cfg.repeatPenalty !== undefined) { repeatPenaltySlider.value = cfg.repeatPenalty; rpValue.textContent = parseFloat(cfg.repeatPenalty).toFixed(2); }
+    if (cfg.seed !== undefined) seedEl.value = cfg.seed;
 
     // Restore theme (default to 'corpo' for configs that predate theme feature)
     const savedTheme = cfg.theme || DEFAULT_SETTINGS.theme;
