@@ -77,7 +77,7 @@ const DEFAULT_SETTINGS = {
     chunkSize: 512,
     stream: true,
     webTools: true,
-    agentName: 'Sojourner',
+    agentName: 'Lumen',
     systemPrompt: '', // will fallback to default logic
     promptMode: 'default',
     historyMode: 'memory',
@@ -124,6 +124,10 @@ function applyThemeClass(theme) {
         document.body.classList.add('corpo-theme');
     } else if (theme === 'corpo-dark') {
         document.body.classList.add('corpo-dark-theme');
+    }
+    // Swap agent name based on theme family
+    if (agentNameEl) {
+        agentNameEl.value = (theme === 'neural-deck') ? 'Sojourner' : 'Lumen';
     }
 }
 
@@ -885,6 +889,105 @@ async function sendMessage() {
                 },
             },
         },
+        {
+            type: 'function',
+            function: {
+                name: 'url_fetch',
+                description: 'Fetch and extract the text content from a URL / webpage. Returns up to 4000 characters of plain text.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        url: { type: 'string', description: 'The full URL to fetch (e.g. https://example.com)' },
+                    },
+                    required: ['url'],
+                },
+            },
+        },
+        {
+            type: 'function',
+            function: {
+                name: 'get_news',
+                description: 'Get current information and headlines about a topic',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        topic: { type: 'string', description: 'The topic to search for news about' },
+                    },
+                    required: ['topic'],
+                },
+            },
+        },
+        {
+            type: 'function',
+            function: {
+                name: 'get_crypto_price',
+                description: 'Get the current price and market data for a cryptocurrency',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        coin: { type: 'string', description: 'The cryptocurrency name or ID (e.g. bitcoin, ethereum, solana, dogecoin)' },
+                    },
+                    required: ['coin'],
+                },
+            },
+        },
+        {
+            type: 'function',
+            function: {
+                name: 'get_stock_quote',
+                description: 'Get the current stock price and daily trading data for a ticker symbol',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        symbol: { type: 'string', description: 'The stock ticker symbol (e.g. AAPL, GOOGL, MSFT, TSLA)' },
+                    },
+                    required: ['symbol'],
+                },
+            },
+        },
+        {
+            type: 'function',
+            function: {
+                name: 'get_definition',
+                description: 'Look up the dictionary definition of a word',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        word: { type: 'string', description: 'The word to define' },
+                    },
+                    required: ['word'],
+                },
+            },
+        },
+        {
+            type: 'function',
+            function: {
+                name: 'dns_lookup',
+                description: 'Query DNS records for a domain name',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        domain: { type: 'string', description: 'The domain name to query (e.g. google.com)' },
+                        record_type: { type: 'string', description: 'DNS record type: A, AAAA, MX, CNAME, TXT, NS, SOA', enum: ['A', 'AAAA', 'MX', 'CNAME', 'TXT', 'NS', 'SOA'] },
+                    },
+                    required: ['domain'],
+                },
+            },
+        },
+        {
+            type: 'function',
+            function: {
+                name: 'calculate',
+                description: 'Evaluate a mathematical expression and return the result. Supports +, -, *, /, %, ^ (exponent), parentheses.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        expression: { type: 'string', description: 'The math expression to evaluate (e.g. "2^10", "sqrt(144)", "(15 * 3) + 7")' },
+                    },
+                    required: ['expression'],
+                },
+            },
+        },
     ];
 
     if (document.body.classList.contains('red-theme')) {
@@ -1073,6 +1176,26 @@ async function sendMessage() {
                         } else if (toolName === 'search_cve') {
                             setStatus(`Searching CVE database for "${args.query}"...`, true);
                             toolResult = await window.ollama.webCVE(args.query);
+                        } else if (toolName === 'url_fetch') {
+                            setStatus(`Fetching ${args.url}...`, true);
+                            toolResult = await window.ollama.webUrlFetch(args.url);
+                        } else if (toolName === 'get_news') {
+                            setStatus(`Searching news for "${args.topic}"...`, true);
+                            toolResult = await window.ollama.webNews(args.topic);
+                        } else if (toolName === 'get_crypto_price') {
+                            setStatus(`Fetching ${args.coin} price...`, true);
+                            toolResult = await window.ollama.webCrypto(args.coin);
+                        } else if (toolName === 'get_stock_quote') {
+                            setStatus(`Fetching ${args.symbol} quote...`, true);
+                            toolResult = await window.ollama.webStock(args.symbol);
+                        } else if (toolName === 'get_definition') {
+                            setStatus(`Looking up "${args.word}"...`, true);
+                            toolResult = await window.ollama.webDefine(args.word);
+                        } else if (toolName === 'dns_lookup') {
+                            setStatus(`DNS lookup: ${args.domain} (${args.record_type || 'A'})...`, true);
+                            toolResult = await window.ollama.webDNS(args.domain, args.record_type);
+                        } else if (toolName === 'calculate') {
+                            toolResult = await window.ollama.webCalc(args.expression);
                         } else {
                             toolResult = { success: false, error: `Unknown tool: ${toolName}` };
                         }

@@ -290,6 +290,174 @@ ipcMain.handle('web:cve', async (_event, query) => {
   }
 });
 
+// URL Fetch — grab and strip HTML to plain text
+ipcMain.handle('web:url_fetch', async (_event, url) => {
+  try {
+    const res = await net.fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const html = await res.text();
+    // Strip HTML tags, decode entities, collapse whitespace
+    const text = html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/\s+/g, ' ')
+      .trim();
+    // Limit to 4000 chars to avoid overloading context
+    return { success: true, data: { url, content: text.slice(0, 4000) } };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// News headlines via DuckDuckGo
+ipcMain.handle('web:news', async (_event, topic) => {
+  try {
+    const data = await fetchJSON(
+      `https://api.duckduckgo.com/?q=${encodeURIComponent(topic)}&format=json&no_html=1&skip_disambig=1`
+    );
+    const results = [];
+    if (data.AbstractText) results.push({ title: data.Heading, text: data.AbstractText, url: data.AbstractURL });
+    for (const t of (data.RelatedTopics || []).slice(0, 8)) {
+      if (t.Text) results.push({ text: t.Text, url: t.FirstURL || '' });
+    }
+    if (results.length === 0) return { success: true, data: { message: `No news results found for "${topic}".` } };
+    return { success: true, data: { topic, results } };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Crypto price via CoinGecko (free, no key)
+ipcMain.handle('web:crypto', async (_event, coin) => {
+  try {
+    const id = coin.toLowerCase().replace(/\s+/g, '-');
+    const data = await fetchJSON(
+      `https://api.coingecko.com/api/v3/coins/${encodeURIComponent(id)}?localization=false&tickers=false&community_data=false&developer_data=false&sparkline=false`
+    );
+    return {
+      success: true,
+      data: {
+        name: data.name,
+        symbol: data.symbol?.toUpperCase(),
+        price_usd: data.market_data?.current_price?.usd,
+        market_cap_usd: data.market_data?.market_cap?.usd,
+        change_24h_pct: data.market_data?.price_change_percentage_24h,
+        high_24h: data.market_data?.high_24h?.usd,
+        low_24h: data.market_data?.low_24h?.usd,
+        total_volume: data.market_data?.total_volume?.usd,
+      },
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Stock quote via Yahoo Finance (no key)
+ipcMain.handle('web:stock', async (_event, symbol) => {
+  try {
+    const data = await fetchJSON(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol.toUpperCase())}?interval=1d&range=1d`
+    );
+    const result = data.chart?.result?.[0];
+    if (!result) return { success: false, error: `No data found for ${symbol}` };
+    const meta = result.meta;
+    return {
+      success: true,
+      data: {
+        symbol: meta.symbol,
+        currency: meta.currency,
+        price: meta.regularMarketPrice,
+        previous_close: meta.previousClose,
+        change: (meta.regularMarketPrice - meta.previousClose).toFixed(2),
+        change_pct: (((meta.regularMarketPrice - meta.previousClose) / meta.previousClose) * 100).toFixed(2) + '%',
+        day_high: meta.regularMarketDayHigh,
+        day_low: meta.regularMarketDayLow,
+        volume: meta.regularMarketVolume,
+      },
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Dictionary definition via Free Dictionary API
+ipcMain.handle('web:define', async (_event, word) => {
+  try {
+    const data = await fetchJSON(
+      `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`
+    );
+    if (!Array.isArray(data) || data.length === 0) return { success: false, error: `No definition found for "${word}"` };
+    const entry = data[0];
+    const meanings = (entry.meanings || []).slice(0, 3).map(m => ({
+      partOfSpeech: m.partOfSpeech,
+      definitions: (m.definitions || []).slice(0, 2).map(d => ({
+        definition: d.definition,
+        example: d.example || null,
+      })),
+    }));
+    return {
+      success: true,
+      data: {
+        word: entry.word,
+        phonetic: entry.phonetic || null,
+        meanings,
+      },
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// DNS lookup via Google DNS-over-HTTPS
+ipcMain.handle('web:dns', async (_event, domain, recordType) => {
+  try {
+    const type = (recordType || 'A').toUpperCase();
+    const data = await fetchJSON(
+      `https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=${type}`
+    );
+    return {
+      success: true,
+      data: {
+        domain,
+        type,
+        status: data.Status,
+        answers: (data.Answer || []).map(a => ({
+          name: a.name,
+          type: a.type,
+          TTL: a.TTL,
+          data: a.data,
+        })),
+      },
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Safe math calculator
+ipcMain.handle('web:calc', async (_event, expression) => {
+  try {
+    // Only allow safe math characters
+    const sanitized = expression.replace(/[^0-9+\-*/.()%^ \t,eE]/g, '');
+    if (!sanitized.trim()) return { success: false, error: 'Empty or invalid expression' };
+    // Replace ^ with ** for exponentiation
+    const jsExpr = sanitized.replace(/\^/g, '**');
+    const result = Function('"use strict"; return (' + jsExpr + ')')();
+    if (typeof result !== 'number' || !isFinite(result)) {
+      return { success: false, error: 'Expression did not evaluate to a finite number' };
+    }
+    return { success: true, data: { expression, result } };
+  } catch (err) {
+    return { success: false, error: `Calculation error: ${err.message}` };
+  }
+});
+
 // ── SSH handler ───────────────────────────────────────────────
 const { exec } = require('child_process');
 

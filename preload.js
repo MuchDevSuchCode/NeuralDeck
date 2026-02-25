@@ -336,6 +336,13 @@ contextBridge.exposeInMainWorld('ollama', {
     webIP: (address) => ipcRenderer.invoke('web:ip', address),
     webSearch: (query) => ipcRenderer.invoke('web:search', query),
     webCVE: (query) => ipcRenderer.invoke('web:cve', query),
+    webUrlFetch: (url) => ipcRenderer.invoke('web:url_fetch', url),
+    webNews: (topic) => ipcRenderer.invoke('web:news', topic),
+    webCrypto: (coin) => ipcRenderer.invoke('web:crypto', coin),
+    webStock: (symbol) => ipcRenderer.invoke('web:stock', symbol),
+    webDefine: (word) => ipcRenderer.invoke('web:define', word),
+    webDNS: (domain, type) => ipcRenderer.invoke('web:dns', domain, type),
+    webCalc: (expr) => ipcRenderer.invoke('web:calc', expr),
 
     // ── SSH connections ──────────────────────────────────────────
     sshConnect: (host, user, key) => ipcRenderer.invoke('ssh:connect', host, user, key),
