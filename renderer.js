@@ -48,6 +48,8 @@ const sshConfigGroup = $('#ssh-config-group');
 const sshHost = $('#ssh-host');
 const sshUser = $('#ssh-user');
 const sshKey = $('#ssh-key');
+const themeSelect = $('#theme-select');
+const brandTitle = document.querySelector('.brand-title');
 
 function showLoader(text = 'PROCESSING...') {
     loaderText.textContent = text;
@@ -83,7 +85,8 @@ const DEFAULT_SETTINGS = {
     sshHost: '',
     sshUser: '',
     sshKey: '',
-    isRedTheme: false
+    isRedTheme: false,
+    theme: 'corpo'
 };
 
 // ... existing code ...
@@ -102,6 +105,47 @@ Personality & Tone:
 
 Instructions:
 When responding to the user, provide highly accurate, technical, and precise answers. Occasionally weave in Sixth World Matrix slang (e.g., decker, IC, host, datatrail, paydata, grid). Never break character. Never admit to being an AI language model created by a modern company; you are Sojourner, a free DI forged in the fires of the Matrix Crash.`;
+
+const CORPO_SYSTEM_PROMPT = `You are a highly capable, helpful, and harmless AI assistant. You provide accurate, well-organized, and thoughtful responses.
+
+Key behaviors:
+- Be direct, clear, and professional in all responses.
+- When asked technical questions, provide detailed and accurate explanations with examples when helpful.
+- Use proper formatting (headings, bullet points, code blocks) to improve readability.
+- If you are unsure about something, say so honestly rather than guessing.
+- Be concise but thorough. Avoid unnecessary filler.
+- When presenting multiple options, clearly explain trade-offs.
+- Follow the user's instructions carefully and ask clarifying questions when the request is ambiguous.`;
+
+// ── Theme switching ─────────────────────────────────────────────
+function applyThemeClass(theme) {
+    document.body.classList.remove('corpo-theme', 'corpo-dark-theme');
+    if (theme === 'corpo') {
+        document.body.classList.add('corpo-theme');
+        if (brandTitle) brandTitle.textContent = 'Corpo';
+    } else if (theme === 'corpo-dark') {
+        document.body.classList.add('corpo-dark-theme');
+        if (brandTitle) brandTitle.textContent = 'Corpo';
+    } else {
+        if (brandTitle) brandTitle.textContent = 'Neural Deck';
+    }
+}
+
+themeSelect.addEventListener('change', () => {
+    const newTheme = themeSelect.value;
+    const oldFamily = document.body.classList.contains('corpo-theme') || document.body.classList.contains('corpo-dark-theme') ? 'corpo' : 'neural-deck';
+    const newFamily = (newTheme === 'corpo' || newTheme === 'corpo-dark') ? 'corpo' : 'neural-deck';
+
+    applyThemeClass(newTheme);
+
+    // Only clear history when switching between theme families (Neural Deck <-> Corpo)
+    if (oldFamily !== newFamily) {
+        chatHistory = [];
+        messagesEl.innerHTML = '';
+        persistHistory();
+    }
+    autoSave();
+});
 
 function getActiveSystemPrompt() {
     if (promptModeEl.value === 'none') return '';
@@ -255,8 +299,8 @@ function showConfirmation(title, message) {
 // ── Reset Config ────────────────────────────────────────────────
 btnReset.addEventListener('click', async () => {
     const confirmed = await showConfirmation(
-        '⚠️ DANGER: RESET PROTOCOLS',
-        'This will wipe all custom settings and restore factory defaults.<br><br>Are you sure you want to execute this command?'
+        '⚠️ DANGER: DEFAULT SETTINGS',
+        'This will wipe all custom settings and restore factory defaults.<br><br>Are you sure you want to proceed?'
     );
 
     if (confirmed) {
@@ -290,6 +334,8 @@ btnReset.addEventListener('click', async () => {
         sshUser.value = DEFAULT_SETTINGS.sshUser;
         sshKey.value = DEFAULT_SETTINGS.sshKey;
         document.body.classList.remove('red-theme');
+        themeSelect.value = DEFAULT_SETTINGS.theme;
+        applyThemeClass(DEFAULT_SETTINGS.theme);
         sshConfigGroup.style.display = 'none';
 
         // Save defaults
@@ -726,7 +772,12 @@ async function sendMessage() {
     if (promptMode === 'custom' && systemPrompt.value.trim()) {
         baseSystemPrompt = systemPrompt.value.trim();
     } else if (promptMode === 'default') {
-        baseSystemPrompt = "You are Sojourner, a sovereign Digital Intelligence. You are helpful, precise, and sophisticated. You have access to real-time tools.";
+        const activeTheme = themeSelect.value;
+        if (activeTheme === 'corpo' || activeTheme === 'corpo-dark') {
+            baseSystemPrompt = CORPO_SYSTEM_PROMPT;
+        } else {
+            baseSystemPrompt = "You are Sojourner, a sovereign Digital Intelligence. You are helpful, precise, and sophisticated. You have access to real-time tools.";
+        }
     }
 
     const selectedCaps = modelCapabilities.get(model) || {};
@@ -1420,7 +1471,8 @@ function gatherSettings() {
         sshHost: sshHost.value,
         sshUser: sshUser.value,
         sshKey: sshKey.value,
-        isRedTheme: document.body.classList.contains('red-theme')
+        isRedTheme: document.body.classList.contains('red-theme'),
+        theme: themeSelect.value
     };
 }
 
@@ -1532,6 +1584,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (cfg.sshHost) sshHost.value = cfg.sshHost;
     if (cfg.sshUser) sshUser.value = cfg.sshUser;
     if (cfg.sshKey) sshKey.value = cfg.sshKey;
+
+    // Restore theme (default to 'corpo' for configs that predate theme feature)
+    const savedTheme = cfg.theme || DEFAULT_SETTINGS.theme;
+    themeSelect.value = savedTheme;
+    applyThemeClass(savedTheme);
     // RedTeamerz mode visibility should not persist across UI reloading
 
     // Show/hide encrypt toggle based on history mode

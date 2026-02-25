@@ -73,6 +73,16 @@
     <!-- Settings Sidebar -->
     <aside id="sidebar" class="open">
       <div class="param-group">
+        <label for="theme-select">Theme</label>
+        <select id="theme-select">
+          <option value="neural-deck">Neural Deck</option>
+          <option value="corpo" selected>Corpo</option>
+          <option value="corpo-dark">Corpo Dark</option>
+        </select>
+        <p class="param-hint">Switching themes will clear the current chat session</p>
+      </div>
+
+      <div class="param-group">
         <label for="agent-name">Agent Name</label>
         <input type="text" id="agent-name" value="Sojourner" spellcheck="false" />
         <p class="param-hint">Display name for the AI in chat</p>
@@ -174,7 +184,7 @@
       </div>
 
       <button id="btn-clear" class="btn-secondary">Clear Chat</button>
-      <button id="btn-reset" class="btn-secondary btn-danger" style="margin-top: 10px;">Reset Protocols</button>
+      <button id="btn-reset" class="btn-secondary btn-danger" style="margin-top: 10px;">Default Settings</button>
     </aside>
 
     <!-- Chat Area -->

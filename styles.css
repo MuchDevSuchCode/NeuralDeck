@@ -77,6 +77,76 @@ body.red-theme {
   --success: #f05050;
 }
 
+/* ── Corpo Theme (Light / Google-inspired) ─────────────────────── */
+body.corpo-theme {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #f1f3f4;
+  --bg-glass: rgba(255, 255, 255, 0.96);
+  --bg-glass-hover: rgba(241, 243, 244, 0.98);
+  --surface-1: #f1f3f4;
+  --surface-2: #e8eaed;
+  --surface-3: #dadce0;
+  --accent: #1a73e8;
+  --accent-glow: rgba(26, 115, 232, 0.15);
+  --accent-dim: #1967d2;
+  --accent-bright: #4285f4;
+  --text-primary: #202124;
+  --text-secondary: #5f6368;
+  --text-muted: #80868b;
+  --text-accent: #1a73e8;
+  --border: rgba(0, 0, 0, 0.08);
+  --border-active: rgba(26, 115, 232, 0.4);
+  --user-bubble: linear-gradient(135deg, #d2e3fc 0%, #c5d9f7 100%);
+  --assistant-bubble: #f8f9fa;
+  --danger: #d93025;
+  --success: #1e8e3e;
+  --cyan: #1a73e8;
+  --amber: #f9ab00;
+}
+
+body.corpo-theme,
+body.corpo-theme * {
+  font-family: 'Inter', 'Segoe UI', 'Roboto', -apple-system, sans-serif !important;
+}
+
+body.corpo-theme .message.user {
+  color: #202124;
+}
+
+/* ── Corpo Dark Theme ──────────────────────────────────────────── */
+body.corpo-dark-theme {
+  --bg-primary: #1e1e1e;
+  --bg-secondary: #252526;
+  --bg-tertiary: #2d2d2d;
+  --bg-glass: rgba(30, 30, 30, 0.96);
+  --bg-glass-hover: rgba(45, 45, 45, 0.98);
+  --surface-1: #2d2d2d;
+  --surface-2: #3c3c3c;
+  --surface-3: #4a4a4a;
+  --accent: #4285f4;
+  --accent-glow: rgba(66, 133, 244, 0.2);
+  --accent-dim: #3b78e7;
+  --accent-bright: #669df6;
+  --text-primary: #e8eaed;
+  --text-secondary: #9aa0a6;
+  --text-muted: #6b7280;
+  --text-accent: #8ab4f8;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-active: rgba(66, 133, 244, 0.4);
+  --user-bubble: linear-gradient(135deg, #1d3557 0%, #1a2a44 100%);
+  --assistant-bubble: #2d2d2d;
+  --danger: #f28b82;
+  --success: #81c995;
+  --cyan: #8ab4f8;
+  --amber: #fdd663;
+}
+
+body.corpo-dark-theme,
+body.corpo-dark-theme * {
+  font-family: 'Inter', 'Segoe UI', 'Roboto', -apple-system, sans-serif !important;
+}
+
 html,
 body {
   height: 100%;
