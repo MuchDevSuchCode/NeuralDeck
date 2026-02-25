@@ -122,12 +122,8 @@ function applyThemeClass(theme) {
     document.body.classList.remove('corpo-theme', 'corpo-dark-theme');
     if (theme === 'corpo') {
         document.body.classList.add('corpo-theme');
-        if (brandTitle) brandTitle.textContent = 'Corpo';
     } else if (theme === 'corpo-dark') {
         document.body.classList.add('corpo-dark-theme');
-        if (brandTitle) brandTitle.textContent = 'Corpo';
-    } else {
-        if (brandTitle) brandTitle.textContent = 'Neural Deck';
     }
 }
 
