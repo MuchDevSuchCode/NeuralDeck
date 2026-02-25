@@ -1502,6 +1502,181 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+// ── Model Search & Download ─────────────────────────────────────
+const btnDownloadModel = $('#btn-download-model');
+const modelSearchModal = $('#model-search-modal');
+const modelSearchClose = $('#model-search-close');
+const modelSearchInput = $('#model-search-input');
+const modelSearchBtn = $('#model-search-btn');
+const modelSearchResults = $('#model-search-results');
+const modelPullProgress = $('#model-pull-progress');
+const modelPullName = $('#model-pull-name');
+const modelPullStatus = $('#model-pull-status');
+const modelPullBar = $('#model-pull-bar');
+const modelPullPct = $('#model-pull-pct');
+
+btnDownloadModel.addEventListener('click', () => {
+    modelSearchModal.classList.remove('hidden');
+    modelSearchInput.focus();
+});
+
+modelSearchClose.addEventListener('click', () => {
+    modelSearchModal.classList.add('hidden');
+});
+
+modelSearchModal.addEventListener('click', (e) => {
+    if (e.target === modelSearchModal) modelSearchModal.classList.add('hidden');
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !modelSearchModal.classList.contains('hidden')) {
+        modelSearchModal.classList.add('hidden');
+    }
+});
+
+async function searchOllamaModels(query) {
+    if (!query.trim()) return;
+    modelSearchResults.innerHTML = '<p class="model-search-hint">Searching…</p>';
+    try {
+        const result = await window.ollama.searchModels(query);
+        if (!result.success) {
+            modelSearchResults.innerHTML = `<p class="model-search-hint">Error: ${result.error}</p>`;
+            return;
+        }
+        const models = result.data;
+        if (!models || models.length === 0) {
+            modelSearchResults.innerHTML = '<p class="model-search-hint">No models found.</p>';
+            return;
+        }
+        modelSearchResults.innerHTML = models.map((m, i) => {
+            const badges = [];
+            if (m.pulls) badges.push(`<span class="model-badge">${m.pulls} pulls</span>`);
+            if (m.tools) badges.push('<span class="model-badge accent">🔧 tools</span>');
+            if (m.vision) badges.push('<span class="model-badge accent">👁 vision</span>');
+            m.sizes.forEach(s => badges.push(`<span class="model-badge">${s}</span>`));
+            return `<div class="model-result-card" id="model-card-${i}">
+                <div class="model-result-info">
+                    <div class="model-result-name">${m.name}</div>
+                    <div class="model-result-desc">${m.description || 'No description'}</div>
+                    <div class="model-result-meta">${badges.join('')}</div>
+                    <div class="model-tags-container" id="model-tags-${i}"></div>
+                </div>
+                <div class="model-result-actions">
+                    <button class="btn-versions" data-model="${m.name}" data-idx="${i}">Versions</button>
+                    <button class="btn-pull" data-model="${m.name}">Download</button>
+                </div>
+            </div>`;
+        }).join('');
+
+        // Attach download handlers (downloads latest)
+        modelSearchResults.querySelectorAll('.btn-pull').forEach(btn => {
+            btn.addEventListener('click', () => pullOllamaModel(btn.dataset.model, btn));
+        });
+
+        // Attach version expansion handlers
+        modelSearchResults.querySelectorAll('.btn-versions').forEach(btn => {
+            btn.addEventListener('click', () => expandModelTags(btn.dataset.model, btn.dataset.idx, btn));
+        });
+    } catch (err) {
+        modelSearchResults.innerHTML = `<p class="model-search-hint">Search failed: ${err.message}</p>`;
+    }
+}
+
+async function expandModelTags(modelName, idx, btn) {
+    const container = document.getElementById(`model-tags-${idx}`);
+    // Toggle: if already loaded, just toggle visibility
+    if (container.dataset.loaded === 'true') {
+        container.classList.toggle('hidden');
+        btn.textContent = container.classList.contains('hidden') ? 'Versions' : 'Hide';
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Loading…';
+    container.innerHTML = '<p class="model-search-hint" style="padding:8px 0;font-size:11px;">Fetching versions…</p>';
+
+    try {
+        const result = await window.ollama.modelTags(modelName);
+        if (!result.success || !result.data.length) {
+            container.innerHTML = '<p class="model-search-hint" style="padding:4px 0;font-size:11px;">No versions found</p>';
+            btn.disabled = false;
+            btn.textContent = 'Versions';
+            return;
+        }
+
+        container.innerHTML = '<div class="model-tags-list">' + result.data.map(t => {
+            const fullName = `${modelName}:${t.tag}`;
+            const info = [t.size, t.context ? t.context + ' ctx' : ''].filter(Boolean).join(' · ');
+            return `<div class="model-tag-row">
+                <span class="model-tag-name">${t.tag}</span>
+                <span class="model-tag-size">${info}</span>
+                <button class="btn-pull-sm" data-model="${fullName}">⬇</button>
+            </div>`;
+        }).join('') + '</div>';
+
+        container.dataset.loaded = 'true';
+        container.classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = 'Hide';
+
+        // Attach tag-level download handlers
+        container.querySelectorAll('.btn-pull-sm').forEach(b => {
+            b.addEventListener('click', () => pullOllamaModel(b.dataset.model, b));
+        });
+    } catch (err) {
+        container.innerHTML = `<p class="model-search-hint" style="padding:4px 0;font-size:11px;">Failed: ${err.message}</p>`;
+        btn.disabled = false;
+        btn.textContent = 'Versions';
+    }
+}
+
+async function pullOllamaModel(modelName, btn) {
+    const base = serverUrl.value.replace(/\/+$/, '');
+    if (btn) { btn.disabled = true; btn.textContent = 'Pulling…'; }
+
+    modelPullProgress.classList.remove('hidden');
+    modelPullName.textContent = modelName;
+    modelPullStatus.textContent = 'Starting…';
+    modelPullBar.style.width = '0%';
+    modelPullPct.textContent = '';
+
+    try {
+        await window.ollama.pullModel(base, modelName, (progress) => {
+            modelPullStatus.textContent = progress.status || '';
+            if (progress.total && progress.completed) {
+                const pct = Math.round((progress.completed / progress.total) * 100);
+                modelPullBar.style.width = pct + '%';
+                const mbDone = (progress.completed / 1048576).toFixed(0);
+                const mbTotal = (progress.total / 1048576).toFixed(0);
+                modelPullPct.textContent = `${pct}% — ${mbDone} / ${mbTotal} MB`;
+            }
+        });
+
+        modelPullStatus.textContent = 'Complete ✓';
+        modelPullBar.style.width = '100%';
+        modelPullPct.textContent = 'Download complete!';
+        if (btn) { btn.textContent = '✓ Done'; }
+
+        // Auto-refresh model list
+        try {
+            const models = await window.ollama.fetchModels(base, providerSelect.value);
+            populateModels(models);
+            setStatus(`Model downloaded — ${models.length} model(s)`, true);
+        } catch { /* ignore refresh errors */ }
+
+    } catch (err) {
+        modelPullStatus.textContent = `Failed: ${err.message}`;
+        modelPullBar.style.width = '0%';
+        modelPullPct.textContent = '';
+        if (btn) { btn.disabled = false; btn.textContent = 'Retry'; }
+    }
+}
+
+modelSearchBtn.addEventListener('click', () => searchOllamaModels(modelSearchInput.value));
+modelSearchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') searchOllamaModels(modelSearchInput.value);
+});
+
 // ── Clear chat ──────────────────────────────────────────────────
 btnClear.addEventListener('click', async () => {
     chatHistory = [];

@@ -344,6 +344,45 @@ contextBridge.exposeInMainWorld('ollama', {
     webDNS: (domain, type) => ipcRenderer.invoke('web:dns', domain, type),
     webCalc: (expr) => ipcRenderer.invoke('web:calc', expr),
 
+    // ── Model search & download ─────────────────────────────────
+    searchModels: (query) => ipcRenderer.invoke('web:search_models', query),
+    modelTags: (name) => ipcRenderer.invoke('web:model_tags', name),
+
+    async pullModel(baseUrl, modelName, onProgress) {
+        const res = await fetch(`${baseUrl}/api/pull`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: modelName, stream: true }),
+        });
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`Pull failed: ${res.status} — ${text}`);
+        }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop();
+            for (const line of lines) {
+                if (!line.trim()) continue;
+                try {
+                    const obj = JSON.parse(line);
+                    if (onProgress) onProgress(obj);
+                } catch { /* skip */ }
+            }
+        }
+        if (buffer.trim()) {
+            try {
+                const obj = JSON.parse(buffer);
+                if (onProgress) onProgress(obj);
+            } catch { /* skip */ }
+        }
+    },
+
     // ── SSH connections ──────────────────────────────────────────
     sshConnect: (host, user, key) => ipcRenderer.invoke('ssh:connect', host, user, key),
     sshRun: (host, user, key, cmd) => ipcRenderer.invoke('ssh:run', host, user, key, cmd),

@@ -57,6 +57,15 @@
         </svg>
       </button>
 
+      <button id="btn-download-model" title="Search & download models">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+      </button>
+
       <button id="btn-toggle-settings" title="Settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
           stroke-linejoin="round">
@@ -327,6 +336,34 @@
       <div class="modal-actions">
         <button id="confirm-cancel" class="btn-modal btn-modal-cancel">ABORT</button>
         <button id="confirm-ok" class="btn-modal btn-danger">EXECUTE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Model Search Modal -->
+  <div id="model-search-modal" class="modal-overlay hidden">
+    <div class="modal-card model-search-card">
+      <div class="model-search-header">
+        <h3>Search & Download Models</h3>
+        <button id="model-search-close" class="btn-modal-close">✕</button>
+      </div>
+      <div class="model-search-input-row">
+        <input type="text" id="model-search-input" placeholder="Search models (e.g. llama, qwen, gemma)…"
+          spellcheck="false" />
+        <button id="model-search-btn" class="btn-modal">Search</button>
+      </div>
+      <div id="model-search-results" class="model-search-results">
+        <p class="model-search-hint">Search the Ollama model library to find and download models.</p>
+      </div>
+      <div id="model-pull-progress" class="model-pull-progress hidden">
+        <div class="model-pull-info">
+          <span id="model-pull-name"></span>
+          <span id="model-pull-status"></span>
+        </div>
+        <div class="progress-bar-track">
+          <div id="model-pull-bar" class="progress-bar-fill"></div>
+        </div>
+        <span id="model-pull-pct" class="model-pull-pct"></span>
       </div>
     </div>
   </div>

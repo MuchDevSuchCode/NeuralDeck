@@ -458,6 +458,91 @@ ipcMain.handle('web:calc', async (_event, expression) => {
   }
 });
 
+// ── Model search (ollama.com) ─────────────────────────────────
+ipcMain.handle('web:search_models', async (_event, query) => {
+  try {
+    const res = await net.fetch(`https://ollama.com/search?q=${encodeURIComponent(query)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const html = await res.text();
+
+    // Parse model cards from HTML using regex
+    const models = [];
+    // Match each model link block: /library/modelname
+    const cardRegex = /<a[^>]*href="\/library\/([^"]+)"[^>]*>[\s\S]*?<\/a>/gi;
+    let match;
+    while ((match = cardRegex.exec(html)) !== null && models.length < 20) {
+      const cardHtml = match[0];
+      const name = match[1];
+
+      // Extract description — look for the paragraph after the heading
+      const descMatch = cardHtml.match(/<p[^>]*class="[^"]*max-w[^"]*"[^>]*>([\s\S]*?)<\/p>/i)
+        || cardHtml.match(/<span[^>]*class="[^"]*line-clamp[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
+      const description = descMatch
+        ? descMatch[1].replace(/<[^>]+>/g, '').trim()
+        : '';
+
+      // Extract pull count
+      const pullMatch = cardHtml.match(/([\d.]+[KMB]?)\s*Pulls/i);
+      const pulls = pullMatch ? pullMatch[1] : '';
+
+      // Extract size tags (1b, 3b, 7b, etc.)
+      const sizes = [];
+      const sizeRegex = /(\d+\.?\d*[bB])\b/g;
+      let sizeMatch;
+      while ((sizeMatch = sizeRegex.exec(cardHtml)) !== null) {
+        const s = sizeMatch[1].toLowerCase();
+        if (!sizes.includes(s)) sizes.push(s);
+      }
+
+      // Detect capabilities
+      const hasTools = /tools/i.test(cardHtml);
+      const hasVision = /vision/i.test(cardHtml);
+
+      if (name && !models.find(m => m.name === name)) {
+        models.push({ name, description, pulls, sizes, tools: hasTools, vision: hasVision });
+      }
+    }
+
+    return { success: true, data: models };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('web:model_tags', async (_event, modelName) => {
+  try {
+    const res = await net.fetch(`https://ollama.com/library/${encodeURIComponent(modelName)}/tags`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const html = await res.text();
+
+    const tags = [];
+    // Match tag links like /library/llama3.2:1b-instruct-q4_0
+    const tagRegex = /href="\/library\/[^:]+:([^"]+)"[^>]*>[\s\S]*?<\/a>/gi;
+    let m;
+    const seen = new Set();
+    while ((m = tagRegex.exec(html)) !== null && tags.length < 50) {
+      const block = m[0];
+      const tag = m[1];
+      if (seen.has(tag)) continue;
+      seen.add(tag);
+
+      // Extract size (e.g. "893MB", "1.0GB", "4.7GB")
+      const sizeMatch = block.match(/([\d.]+\s*[KMGT]B)/i);
+      const size = sizeMatch ? sizeMatch[1].replace(/\s/g, '') : '';
+
+      // Extract context window (e.g. "128K")
+      const ctxMatch = block.match(/([\d.]+K)\s*(?:context)?/i);
+      const context = ctxMatch ? ctxMatch[1] : '';
+
+      tags.push({ tag, size, context });
+    }
+
+    return { success: true, data: tags };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 // ── SSH handler ───────────────────────────────────────────────
 const { exec } = require('child_process');
 
