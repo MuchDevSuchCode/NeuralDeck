@@ -1,6 +1,6 @@
 # Neural Deck
 
-A sleek Electron desktop client for [Ollama](https://ollama.com) and [LM Studio](https://lmstudio.ai) with a Linux terminal–inspired UI.
+A sleek Electron desktop client for [Ollama](https://ollama.com) and [LM Studio](https://lmstudio.ai) with three switchable themes and a full suite of AI tools.
 
 ![Electron](https://img.shields.io/badge/Electron-34-47848F?logo=electron&logoColor=white)
 ![Node](https://img.shields.io/badge/Node-18+-339933?logo=node.js&logoColor=white)
@@ -10,29 +10,84 @@ A sleek Electron desktop client for [Ollama](https://ollama.com) and [LM Studio]
   <img src="screenshot1.png" alt="Neural Deck" width="600" />
   <img src="screenshot2.png" alt="Neural Deck Chat" width="600" />
   <img src="screenshot3.png" alt="Neural Deck Settings" width="600" />
-
 </p>
 
 ## Features
 
+### Core
 - **Streaming chat** — real-time token streaming with stop/cancel support
-- **Multi-provider** — switch between Ollama and LM Studio from the Provider dropdown; URL auto-switches to default ports
-- **AI tool calling** — Gemini-style tool use; the model can query weather, time, IP info, and web search using free APIs — no API keys needed
-- **Model capability icons** — 👁 vision, 🔧 tool-calling — icons in the model dropdown so you know what each model supports
-- **Vision model support** — attach images and use vision-capable models for image analysis
-- **Image & file attachments** — attach images (base64 for vision models) or text files to your prompts; attached files display as chips in the chat history
-- **Emoji picker** — built-in emoji panel with 8 categorized tabs and search
+- **Multi-provider** — switch between Ollama and LM Studio; URL auto-switches to default ports
+- **Model capability icons** — 👁 vision, 🔧 tool-calling icons in the model dropdown
+- **Vision model support** — attach images for analysis with vision-capable models
+- **Image & file attachments** — images (base64) or text files; displayed as chips in chat
+- **Emoji picker** — 8 categorized tabs with search
+- **Performance stats** — tokens/sec and token count on every response
 
-- **System prompt modes** — Default (Sojourner persona), None, or Custom with your own prompt
-- **Smart Port Switching** — automatically swaps ports (11434 ↔ 1234) when switching providers while preserving your custom hostname
-- **System Restore** — "Reset Protocols" button to wipe settings and restore factory defaults
-- **Persistent chat history** — choose between in-memory or disk-based history storage
-- **Encrypted history** — optional AES-256-GCM encryption for disk-stored conversations
-- **Performance stats** — tokens/sec and token count displayed on every response
-- **Configurable parameters** — temperature, max tokens, context length, chunk size
-- **Agent naming** — customize the assistant's display name (default: Sojourner)
-- **Auto-persistence** — all settings saved automatically to a local config file
-- **Neural Interface** — cyberpunk/terminal aesthetic with glassmorphism, scanlines, and animated terminal-style loaders
+### Themes
+
+Neural Deck ships with three built-in themes, selectable from the Settings sidebar. Switching between Corpo and Corpo Dark preserves your conversation; switching to/from Neural Deck clears chat history.
+
+| Theme | Style | Default Agent | Default Prompt |
+|-------|-------|---------------|----------------|
+| **Corpo** (default) | Clean, light, Google-inspired. Inter font, blue accents | Lumen | Professional helpful assistant |
+| **Corpo Dark** | Dark variant of Corpo. Same clean aesthetic, dark palette | Lumen | Professional helpful assistant |
+| **Neural Deck** | Cyberpunk terminal. Monospace font, green accents, scanlines | Sojourner | Sixth World Digital Intelligence |
+
+> **Note:** Red Team mode operates independently of the theme selector and is not affected by theme changes.
+
+### AI Tool Calling (12 Tools)
+
+Models with the 🔧 icon support tool calling. The model autonomously decides when to invoke tools based on your questions — just like Gemini or ChatGPT. All APIs are **free and require no API keys**.
+
+| Tool | API Source | Description |
+|------|-----------|-------------|
+| `get_weather` | [Open-Meteo](https://open-meteo.com) | Current conditions + 3-day forecast for any city |
+| `get_time` | [WorldTimeAPI](https://worldtimeapi.org) | Current local time in any city/timezone |
+| `get_ip_info` | [ip-api.com](http://ip-api.com) | IP geolocation lookup (defaults to your IP) |
+| `web_search` | [DuckDuckGo](https://duckduckgo.com) | Quick factual web lookup |
+| `search_cve` | [NIST NVD](https://nvd.nist.gov) | CVE vulnerability search by keyword |
+| `url_fetch` | Electron `net` | Fetch & extract plain text from any URL (up to 4000 chars) |
+| `get_news` | [DuckDuckGo](https://duckduckgo.com) | Current headlines and info about a topic |
+| `get_crypto_price` | [CoinGecko](https://coingecko.com) | Live cryptocurrency price and market data |
+| `get_stock_quote` | [Yahoo Finance](https://finance.yahoo.com) | Stock price, daily change, volume |
+| `get_definition` | [Free Dictionary](https://dictionaryapi.dev) | Dictionary word lookup with examples |
+| `dns_lookup` | [Google DoH](https://dns.google) | DNS record queries (A, AAAA, MX, CNAME, TXT, NS, SOA) |
+| `calculate` | Node.js sandbox | Safe math expression evaluator |
+
+The **Web Tools** toggle in Settings lets you disable all tool calling globally. When off, no tool definitions are sent to the model.
+
+#### How Tool Calling Works
+
+1. You ask a question like *"What's Bitcoin trading at right now?"*
+2. The model returns a `tool_calls` request for `get_crypto_price`
+3. A pulsing `🔧 Calling get_crypto_price…` indicator appears in the status bar
+4. Neural Deck fetches real data from the API
+5. The result goes back to the model, which writes a natural-language response
+6. The response meta line shows `🔧 1 tool call(s)` when tools were used
+
+> **Note:** Models without tool support (no 🔧 icon) work normally — tool definitions are only sent to capable models.
+
+### Settings & Configuration
+
+Settings are auto-saved to `<userData>/config.json` and restored on launch:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Theme | `corpo` | UI theme: `neural-deck`, `corpo`, or `corpo-dark` |
+| Provider | `ollama` | Backend: `ollama` or `lmstudio` |
+| Server URL | `http://localhost:11434` | API endpoint (auto-switches port on provider change) |
+| Temperature | `0.7` | Sampling temperature (0 = precise, 2 = creative) |
+| Max Tokens | `2048` | Maximum tokens to generate |
+| Context Length | `4096` | Context window size (`num_ctx`) |
+| Chunk Size | `512` | Prompt batch size (`num_batch`) |
+| Stream | `true` | Real-time token streaming |
+| Web Tools | `true` | Enable/disable AI tool calling |
+| Agent Name | `Lumen` | Display name for the AI (auto-switches per theme) |
+| Prompt Mode | `default` | `default`, `none`, or `custom` |
+| History Mode | `memory` | `memory` or `disk` |
+| Encrypt History | `false` | AES-256-GCM encryption for disk history |
+
+Use the **Default Settings** button at the bottom of the Settings sidebar to restore factory defaults.
 
 ## Prerequisites
 
@@ -42,7 +97,7 @@ A sleek Electron desktop client for [Ollama](https://ollama.com) and [LM Studio]
 ## Quick Start
 
 ```bash
-# Clone / copy the project
+# Clone the project
 git clone <git@github.com:MuchDevSuchCode/NeuralLink.git> neural-deck
 cd neural-deck
 
@@ -57,8 +112,6 @@ The app will auto-connect to `http://localhost:11434` and fetch available models
 
 ## Building from Source
 
-To compile Neural Deck into a standalone executable (`.exe`, `.dmg`, or `.AppImage`), we recommend using `electron-builder`.
-
 ```bash
 # Install electron-builder as a dev dependency
 npm install electron-builder --save-dev
@@ -67,20 +120,19 @@ npm install electron-builder --save-dev
 npx electron-builder
 ```
 
-You can also target specific platforms using flags like `npx electron-builder --win` or `npx electron-builder --mac`. The compiled executables will be generated in the `dist/` directory.
+Target specific platforms with `npx electron-builder --win` or `npx electron-builder --mac`. Compiled executables are generated in the `dist/` directory.
 
 ## Usage
 
 1. **Provider** — select Ollama or LM Studio from the Provider dropdown
-2. **Connect** — enter your server URL in the top bar and click the refresh button (auto-fills default port)
+2. **Connect** — enter your server URL and click the refresh button
 3. **Select a model** — pick from the dropdown (👁 = vision, 🔧 = tool-calling)
 4. **Chat** — type a message and press Enter or click Send
-5. **Ask real-world questions** — models with 🔧 can fetch live weather, time, IP info, and web search results
-6. **Attach files** — use the 📷 (image) or 📎 (file) buttons next to the input
-7. **Emoji** — click the 😊 smiley button to open the emoji picker; click any emoji to insert it at your cursor
-
-9. **Tune parameters** — open the settings sidebar with the gear icon
-10. **System Restore** — use the "Reset Protocols" button at the bottom of settings to factory reset the app
+5. **Ask real-world questions** — 🔧 models can fetch live weather, crypto prices, stock quotes, DNS records, definitions, and more
+6. **Attach files** — use the 📷 (image) or 📎 (file) buttons
+7. **Emoji** — click 😊 to open the emoji picker
+8. **Switch themes** — open Settings and change the Theme dropdown
+9. **Tune parameters** — adjust settings in the sidebar
 
 ### Keyboard Shortcuts
 
@@ -88,68 +140,32 @@ You can also target specific platforms using flags like `npx electron-builder --
 |-----|--------|
 | `Enter` | Send message |
 | `Shift+Enter` | New line in input |
-| `Escape` | Close emoji picker / encryption key modal |
-
-## AI Tool Calling
-
-Models with the 🔧 icon support **Ollama's native tool-calling API**. When you ask a real-world question, the model decides on its own whether to call a tool — just like Gemini or ChatGPT.
-
-### Available Tools
-
-| Tool | API Source | Description |
-|------|-----------|-------------|
-| `get_weather` | [Open-Meteo](https://open-meteo.com) | Current conditions + 3-day forecast for any city |
-| `get_time` | [WorldTimeAPI](https://worldtimeapi.org) | Current local time in any city/timezone |
-| `get_ip_info` | [ip-api.com](http://ip-api.com) | IP geolocation lookup (defaults to your IP) |
-| `web_search` | [DuckDuckGo](https://duckduckgo.com) | Quick factual web lookup |
-
-All APIs are **free and require no API keys**.
-
-### How It Works
-
-1. You ask a question like *"What's the weather in Dallas?"*
-2. The model returns a `tool_calls` request for `get_weather`
-3. A pulsing `🔧 Calling get_weather…` indicator appears
-4. Neural Deck fetches real data from the API
-5. The result goes back to the model, which writes a natural-language response
-6. The response meta line shows `🔧 1 tool call(s)` when tools were used
-
-> **Note:** Models without tool support (no 🔧 icon) work normally — tool definitions are only sent to capable models. Tool support is auto-detected via Ollama's `/api/show` endpoint.
-
-
+| `Escape` | Close emoji picker / modals |
 
 ## System Prompt
 
-The system prompt mode is selectable from the Settings sidebar:
-
 | Mode | Behavior |
 |------|----------|
-| **Default** | Uses the built-in Sojourner persona — a sovereign Digital Intelligence from the Sixth World |
-| **None** | No system prompt is sent; the model runs with its base behavior |
-| **Custom** | Reveals a textarea where you can write your own system prompt |
+| **Default** | Theme-aware: Sojourner persona (Neural Deck) or professional assistant (Corpo/Corpo Dark) |
+| **None** | No system prompt sent; model runs with base behavior |
+| **Custom** | Textarea for your own prompt |
 
 ## Chat History
 
-Neural Deck supports two history storage modes, configurable in the Settings sidebar under **History**:
-
 ### Memory (default)
-
-Chat history lives only in the current session. Closing the app loses all conversation data.
+History lives only in the current session. Closing the app loses all data.
 
 ### Disk
-
-Chat history is written to `chat_history/current.json` in the app directory after every message. On restart, your conversation is automatically restored.
+Written to `chat_history/current.json` after every message. Restored on restart.
 
 ### Encrypted Disk
+When **Encrypt History** is enabled (Disk mode only), history is encrypted with **AES-256-GCM**:
 
-When the **Encrypt History** toggle is enabled (only visible in Disk mode), chat history is encrypted with **AES-256-GCM** before being saved to `chat_history/current.enc`.
+- **Key derivation** — scrypt (`N=16384, r=8, p=1`) with random 16-byte salt
+- **File format** — `salt(16) + iv(12) + authTag(16) + ciphertext`
+- **Passphrase** — prompted once per session, held only in memory, never persisted
 
-- **Key derivation** — your passphrase is run through `scryptSync` with a random 16-byte salt to derive a 256-bit key
-- **Encryption** — each save generates a fresh 12-byte IV; the file format is `salt(16) + iv(12) + authTag(16) + ciphertext`
-- **Key prompt** — a modal overlay prompts for your passphrase when encryption is first used and again on each app restart. The passphrase is held only in memory and never written to disk
-- **Wrong passphrase** — GCM's authentication tag detects incorrect keys and shows an error toast
-
-> **Note:** The `chat_history/` directory is listed in `.gitignore` to prevent accidental commits of conversation data.
+> The `chat_history/` directory is in `.gitignore` to prevent accidental commits.
 
 ## Project Structure
 
@@ -157,69 +173,40 @@ When the **Encrypt History** toggle is enabled (only visible in Disk mode), chat
 neural-deck/
 ├── main.js            # Electron main process (window, IPC, file dialogs, crypto, web APIs)
 ├── preload.js         # Bridge between main & renderer (Ollama API, tool detection, history IPC)
-├── renderer.js        # Frontend logic (chat, tool calling, markdown, attachments, emoji, history)
-
+├── renderer.js        # Frontend logic (chat, tool calling, markdown, themes, attachments, emoji)
 ├── index.html         # App layout & structure
-├── styles.css         # Terminal-themed styling
+├── styles.css         # Themeable styling (Neural Deck / Corpo / Corpo Dark / Red)
 ├── ndlogo.png         # App logo (welcome screen)
 ├── ndicon.png         # App icon (top bar)
-├── .gitignore         # Excludes node_modules/ and chat_history/
+├── neural_mon.py      # System hardware monitor (Shadowrun-themed terminal UI)
+├── .gitignore
 ├── chat_history/      # Auto-created; stores persisted conversations
 └── package.json
 ```
 
-## Configuration
-
-Settings are auto-saved to `<userData>/config.json` and restored on launch:
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Provider | `ollama` | Backend provider (`ollama` or `lmstudio`) |
-| Server URL | `http://localhost:11434` | API endpoint (auto-switches port on provider change) |
-| Temperature | `0.7` | Sampling temperature (0 = precise, 2 = creative) |
-| Max Tokens | `2048` | Maximum tokens to generate |
-| Context Length | `4096` | Context window size (`num_ctx`) |
-| Chunk Size | `512` | Prompt batch size (`num_batch`) |
-| Stream | `true` | Stream tokens in real-time |
-| Agent Name | `Sojourner` | Display name for the AI |
-| Prompt Mode | `default` | `default`, `none`, or `custom` |
-| System Prompt | *(empty)* | Custom system message (used when Prompt Mode is `custom`) |
-| History Mode | `memory` | `memory` or `disk` |
-| Encrypt History | `false` | Enable AES-256-GCM encryption for disk history |
-
 ## API
 
-The client supports two backend providers:
-
 ### Ollama
-
-- `GET /api/tags` — list models (with vision detection via `details.families`)
-- `POST /api/show` — detect tool-calling support (checks model template for tool tokens)
-- `POST /api/chat` — chat completion (streaming via NDJSON, with optional tool calling)
+- `GET /api/tags` — list models (vision detection via `details.families`)
+- `POST /api/show` — detect tool-calling support
+- `POST /api/chat` — chat completion (NDJSON streaming, tool calling)
 
 Default: `http://localhost:11434`
 
 ### LM Studio
-
-- `GET /v1/models` — list loaded models (OpenAI-compatible)
-- `POST /v1/chat/completions` — chat completion (streaming via SSE, OpenAI format)
+- `GET /v1/models` — list models (OpenAI-compatible)
+- `POST /v1/chat/completions` — chat completion (SSE streaming, OpenAI format)
 
 Default: `http://localhost:1234`
 
-Both providers also support these free external APIs for tool-call results:
-
-- [Open-Meteo](https://open-meteo.com) — weather and geocoding
-- [WorldTimeAPI](https://worldtimeapi.org) — timezone and current time
-- [ip-api.com](http://ip-api.com) — IP geolocation
-- [DuckDuckGo Instant Answer](https://api.duckduckgo.com) — web search
-
 ## Security
 
-- Encryption uses **AES-256-GCM** — an authenticated encryption scheme that provides both confidentiality and integrity
-- Key derivation uses **scrypt** (`N=16384, r=8, p=1`) with a unique random salt per save
-- The passphrase is **never persisted** — it's held only in a JavaScript variable for the duration of the session
-- The encryption key modal is **separate from the chat** — passphrase input is never added to chat history or sent to the model
-- Web tool API calls are made from the **main process** — no direct network access from the renderer
+- **AES-256-GCM** authenticated encryption for history
+- **scrypt** key derivation with unique random salt per save
+- Passphrase **never persisted** — held only in a JS variable for the session
+- Encryption key modal is **separate from chat** — never sent to the model
+- Web tool API calls run in the **main process** — no direct renderer network access
+- Calculator tool uses **strict sanitization** — only math characters allowed
 
 ## License
 
