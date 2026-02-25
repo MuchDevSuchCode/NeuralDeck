@@ -55,6 +55,20 @@ npm start
 
 The app will auto-connect to `http://localhost:11434` and fetch available models on startup.
 
+## Building from Source
+
+To compile Neural Deck into a standalone executable (`.exe`, `.dmg`, or `.AppImage`), we recommend using `electron-builder`.
+
+```bash
+# Install electron-builder as a dev dependency
+npm install electron-builder --save-dev
+
+# Build for your current operating system
+npx electron-builder
+```
+
+You can also target specific platforms using flags like `npx electron-builder --win` or `npx electron-builder --mac`. The compiled executables will be generated in the `dist/` directory.
+
 ## Usage
 
 1. **Provider** — select Ollama or LM Studio from the Provider dropdown

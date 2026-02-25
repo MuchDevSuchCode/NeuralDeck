@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, MenuItem } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -368,6 +368,41 @@ function createWindow() {
   });
 
   win.loadFile('index.html');
+
+  // Add native right-click context menu
+  win.webContents.on('context-menu', (event, params) => {
+    const menu = new Menu();
+
+    // Text editing properties
+    if (params.isEditable) {
+      menu.append(new MenuItem({ role: 'undo' }));
+      menu.append(new MenuItem({ role: 'redo' }));
+      menu.append(new MenuItem({ type: 'separator' }));
+      menu.append(new MenuItem({ role: 'cut' }));
+      menu.append(new MenuItem({ role: 'copy' }));
+      menu.append(new MenuItem({ role: 'paste' }));
+    } else if (params.selectionText && params.selectionText.trim().length > 0) {
+      // Just copy if it's highlighted text in a read-only area
+      menu.append(new MenuItem({ role: 'copy' }));
+    }
+
+    // Add dictionary suggestions if available
+    if (params.dictionarySuggestions && params.dictionarySuggestions.length > 0) {
+      if (menu.items.length > 0) menu.append(new MenuItem({ type: 'separator' }));
+      for (const suggestion of params.dictionarySuggestions) {
+        menu.append(new MenuItem({
+          label: suggestion,
+          click: () => win.webContents.replaceMisspelling(suggestion)
+        }));
+      }
+    }
+
+    // Always allow select all
+    if (menu.items.length > 0) menu.append(new MenuItem({ type: 'separator' }));
+    menu.append(new MenuItem({ role: 'selectAll' }));
+
+    menu.popup();
+  });
 }
 
 app.whenReady().then(createWindow);
