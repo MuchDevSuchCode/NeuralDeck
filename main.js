@@ -459,9 +459,20 @@ ipcMain.handle('web:calc', async (_event, expression) => {
 });
 
 // ── Model search (ollama.com) ─────────────────────────────────
-ipcMain.handle('web:search_models', async (_event, query) => {
+ipcMain.handle('web:search_models', async (_event, query, sort, categories) => {
   try {
-    const res = await net.fetch(`https://ollama.com/search?q=${encodeURIComponent(query)}`);
+    let url = 'https://ollama.com/search';
+    const params = new URLSearchParams();
+    if (query) params.append('q', query);
+    if (sort) params.append('s', sort);
+    if (categories && Array.isArray(categories)) {
+      categories.forEach(c => params.append('c', c));
+    }
+
+    const qs = params.toString();
+    if (qs) url += `?${qs}`;
+
+    const res = await net.fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const html = await res.text();
 
@@ -497,9 +508,10 @@ ipcMain.handle('web:search_models', async (_event, query) => {
       // Detect capabilities
       const hasTools = /tools/i.test(cardHtml);
       const hasVision = /vision/i.test(cardHtml);
+      const hasReasoning = /thinking/i.test(cardHtml);
 
       if (name && !models.find(m => m.name === name)) {
-        models.push({ name, description, pulls, sizes, tools: hasTools, vision: hasVision });
+        models.push({ name, description, pulls, sizes, tools: hasTools, vision: hasVision, reasoning: hasReasoning });
       }
     }
 

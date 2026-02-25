@@ -345,14 +345,29 @@ contextBridge.exposeInMainWorld('ollama', {
     webCalc: (expr) => ipcRenderer.invoke('web:calc', expr),
 
     // ── Model search & download ─────────────────────────────────
-    searchModels: (query) => ipcRenderer.invoke('web:search_models', query),
+    searchModels: (query, sort, categories) => ipcRenderer.invoke('web:search_models', query, sort, categories),
     modelTags: (name) => ipcRenderer.invoke('web:model_tags', name),
 
+    // Used to abort pull models
+    _activePullController: null,
+
+    cancelPull() {
+        if (this._activePullController) {
+            this._activePullController.abort();
+            this._activePullController = null;
+        }
+    },
+
     async pullModel(baseUrl, modelName, onProgress) {
+        this.cancelPull(); // Cancel previous if any
+        this._activePullController = new AbortController();
+        const signal = this._activePullController.signal;
+
         const res = await fetch(`${baseUrl}/api/pull`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: modelName, stream: true }),
+            signal
         });
         if (!res.ok) {
             const text = await res.text();
@@ -361,25 +376,29 @@ contextBridge.exposeInMainWorld('ollama', {
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop();
-            for (const line of lines) {
-                if (!line.trim()) continue;
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    try {
+                        const obj = JSON.parse(line);
+                        if (onProgress) onProgress(obj);
+                    } catch { /* skip */ }
+                }
+            }
+            if (buffer.trim()) {
                 try {
-                    const obj = JSON.parse(line);
+                    const obj = JSON.parse(buffer);
                     if (onProgress) onProgress(obj);
                 } catch { /* skip */ }
             }
-        }
-        if (buffer.trim()) {
-            try {
-                const obj = JSON.parse(buffer);
-                if (onProgress) onProgress(obj);
-            } catch { /* skip */ }
+        } finally {
+            this._activePullController = null;
         }
     },
 

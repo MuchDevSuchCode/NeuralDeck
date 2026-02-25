@@ -347,13 +347,24 @@
         <h3>Search & Download Models</h3>
         <button id="model-search-close" class="btn-modal-close">✕</button>
       </div>
-      <div class="model-search-input-row">
+      <div class="model-search-filters">
+        <div class="model-sort-toggles">
+          <button id="model-filter-popular" class="btn-filter active">Popular</button>
+          <button id="model-filter-newest" class="btn-filter">Newest</button>
+        </div>
+        <div class="model-cap-toggles">
+          <button class="btn-filter btn-cap" data-cap="vision">👁 Vision</button>
+          <button class="btn-filter btn-cap" data-cap="tools">🔧 Tools</button>
+          <button class="btn-filter btn-cap" data-cap="thinking">🧠 Reasoning</button>
+        </div>
+      </div>
+      <div class="model-search-input-row" style="margin-bottom: 12px;">
         <input type="text" id="model-search-input" placeholder="Search models (e.g. llama, qwen, gemma)…"
           spellcheck="false" />
         <button id="model-search-btn" class="btn-modal">Search</button>
       </div>
       <div id="model-search-results" class="model-search-results">
-        <p class="model-search-hint">Search the Ollama model library to find and download models.</p>
+        <p class="model-search-hint">Loading models…</p>
       </div>
       <div id="model-pull-progress" class="model-pull-progress hidden">
         <div class="model-pull-info">
@@ -363,7 +374,11 @@
         <div class="progress-bar-track">
           <div id="model-pull-bar" class="progress-bar-fill"></div>
         </div>
-        <span id="model-pull-pct" class="model-pull-pct"></span>
+        <div class="model-pull-footer"
+          style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+          <button id="btn-cancel-pull" class="btn-pull-sm btn-danger" style="margin-top: 0;">Cancel</button>
+          <span id="model-pull-pct" class="model-pull-pct" style="margin-top: 0;"></span>
+        </div>
       </div>
     </div>
   </div>

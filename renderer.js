@@ -1514,10 +1514,21 @@ const modelPullName = $('#model-pull-name');
 const modelPullStatus = $('#model-pull-status');
 const modelPullBar = $('#model-pull-bar');
 const modelPullPct = $('#model-pull-pct');
+const btnCancelPull = $('#btn-cancel-pull');
+const filterPopular = $('#model-filter-popular');
+const filterNewest = $('#model-filter-newest');
 
+let currentActiveFilter = filterPopular;
+let isPulling = false;
+
+// Open modal and load popular models by default
 btnDownloadModel.addEventListener('click', () => {
     modelSearchModal.classList.remove('hidden');
-    modelSearchInput.focus();
+    if (!modelSearchResults.querySelector('.model-result-card')) {
+        searchOllamaModels('', 'popular'); // load default
+    } else {
+        modelSearchInput.focus();
+    }
 });
 
 modelSearchClose.addEventListener('click', () => {
@@ -1534,11 +1545,46 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-async function searchOllamaModels(query) {
-    if (!query.trim()) return;
-    modelSearchResults.innerHTML = '<p class="model-search-hint">Searching…</p>';
+// Filters
+let activeCaps = [];
+
+function applyFilter(btn, sort) {
+    if (currentActiveFilter) currentActiveFilter.classList.remove('active');
+    btn.classList.add('active');
+    currentActiveFilter = btn;
+    modelSearchInput.value = '';
+    searchOllamaModels('', sort, activeCaps);
+}
+
+filterPopular.addEventListener('click', () => applyFilter(filterPopular, 'popular'));
+filterNewest.addEventListener('click', () => applyFilter(filterNewest, 'newest'));
+
+document.querySelectorAll('.btn-cap').forEach(btn => {
+    btn.addEventListener('click', () => {
+        btn.classList.toggle('active');
+        const cap = btn.dataset.cap;
+        if (btn.classList.contains('active')) {
+            if (!activeCaps.includes(cap)) activeCaps.push(cap);
+        } else {
+            activeCaps = activeCaps.filter(c => c !== cap);
+        }
+        // Retrigger search
+        const query = modelSearchInput.value;
+        const sort = currentActiveFilter ? (currentActiveFilter.id === 'model-filter-newest' ? 'newest' : 'popular') : '';
+        searchOllamaModels(query, sort, activeCaps);
+    });
+});
+
+async function searchOllamaModels(query, sort = '', categories = []) {
+    // If user is searching manually, clear filter active states
+    if (query.trim() && currentActiveFilter) {
+        currentActiveFilter.classList.remove('active');
+        currentActiveFilter = null;
+    }
+
+    modelSearchResults.innerHTML = '<p class="model-search-hint">Loading…</p>';
     try {
-        const result = await window.ollama.searchModels(query);
+        const result = await window.ollama.searchModels(query, sort, categories);
         if (!result.success) {
             modelSearchResults.innerHTML = `<p class="model-search-hint">Error: ${result.error}</p>`;
             return;
@@ -1553,6 +1599,7 @@ async function searchOllamaModels(query) {
             if (m.pulls) badges.push(`<span class="model-badge">${m.pulls} pulls</span>`);
             if (m.tools) badges.push('<span class="model-badge accent">🔧 tools</span>');
             if (m.vision) badges.push('<span class="model-badge accent">👁 vision</span>');
+            if (m.reasoning) badges.push('<span class="model-badge accent">🧠 reasoning</span>');
             m.sizes.forEach(s => badges.push(`<span class="model-badge">${s}</span>`));
             return `<div class="model-result-card" id="model-card-${i}">
                 <div class="model-result-info">
@@ -1630,15 +1677,26 @@ async function expandModelTags(modelName, idx, btn) {
     }
 }
 
+// Cancel pull handler
+btnCancelPull.addEventListener('click', () => {
+    if (isPulling) {
+        window.ollama.cancelPull();
+    }
+});
+
 async function pullOllamaModel(modelName, btn) {
+    if (isPulling) return;
+
     const base = serverUrl.value.replace(/\/+$/, '');
     if (btn) { btn.disabled = true; btn.textContent = 'Pulling…'; }
 
+    isPulling = true;
     modelPullProgress.classList.remove('hidden');
     modelPullName.textContent = modelName;
     modelPullStatus.textContent = 'Starting…';
     modelPullBar.style.width = '0%';
     modelPullPct.textContent = '';
+    btnCancelPull.style.display = 'block';
 
     try {
         await window.ollama.pullModel(base, modelName, (progress) => {
@@ -1656,6 +1714,7 @@ async function pullOllamaModel(modelName, btn) {
         modelPullBar.style.width = '100%';
         modelPullPct.textContent = 'Download complete!';
         if (btn) { btn.textContent = '✓ Done'; }
+        btnCancelPull.style.display = 'none';
 
         // Auto-refresh model list
         try {
@@ -1665,16 +1724,31 @@ async function pullOllamaModel(modelName, btn) {
         } catch { /* ignore refresh errors */ }
 
     } catch (err) {
-        modelPullStatus.textContent = `Failed: ${err.message}`;
+        if (err.message.includes('abort') || err.message.includes('Cancel')) {
+            modelPullStatus.textContent = 'Cancelled';
+            modelPullPct.textContent = 'Download stopped.';
+            if (btn) { btn.disabled = false; btn.textContent = 'Download'; }
+        } else {
+            modelPullStatus.textContent = `Failed: ${err.message}`;
+            modelPullPct.textContent = '';
+            if (btn) { btn.disabled = false; btn.textContent = 'Retry'; }
+        }
         modelPullBar.style.width = '0%';
-        modelPullPct.textContent = '';
-        if (btn) { btn.disabled = false; btn.textContent = 'Retry'; }
+        btnCancelPull.style.display = 'none';
+    } finally {
+        isPulling = false;
     }
 }
 
-modelSearchBtn.addEventListener('click', () => searchOllamaModels(modelSearchInput.value));
+modelSearchBtn.addEventListener('click', () => {
+    const sort = currentActiveFilter ? (currentActiveFilter.id === 'model-filter-newest' ? 'newest' : 'popular') : '';
+    searchOllamaModels(modelSearchInput.value, sort, activeCaps);
+});
 modelSearchInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') searchOllamaModels(modelSearchInput.value);
+    if (e.key === 'Enter') {
+        const sort = currentActiveFilter ? (currentActiveFilter.id === 'model-filter-newest' ? 'newest' : 'popular') : '';
+        searchOllamaModels(modelSearchInput.value, sort, activeCaps);
+    }
 });
 
 // ── Clear chat ──────────────────────────────────────────────────
