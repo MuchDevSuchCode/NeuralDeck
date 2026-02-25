@@ -516,21 +516,27 @@ ipcMain.handle('web:model_tags', async (_event, modelName) => {
     const html = await res.text();
 
     const tags = [];
-    // Match tag links like /library/llama3.2:1b-instruct-q4_0
-    const tagRegex = /href="\/library\/[^:]+:([^"]+)"[^>]*>[\s\S]*?<\/a>/gi;
-    let m;
+    // Split HTML into blocks by tag card using the 'group px-4 py-3' separator
+    const blocks = html.split('group px-4 py-3');
     const seen = new Set();
-    while ((m = tagRegex.exec(html)) !== null && tags.length < 50) {
-      const block = m[0];
-      const tag = m[1];
+
+    // First element is the header, skip it
+    for (let i = 1; i < blocks.length; i++) {
+      const block = blocks[i];
+
+      // Find the tag name from the desktop link (e.g. href="/library/llama3.2:1b")
+      const tagMatch = block.match(/href="\/library\/[^:]+:([^"]+)"/i);
+      if (!tagMatch) continue;
+      const tag = tagMatch[1];
+
       if (seen.has(tag)) continue;
       seen.add(tag);
 
-      // Extract size (e.g. "893MB", "1.0GB", "4.7GB")
+      // Find size (e.g. 1.3GB or 893MB)
       const sizeMatch = block.match(/([\d.]+\s*[KMGT]B)/i);
       const size = sizeMatch ? sizeMatch[1].replace(/\s/g, '') : '';
 
-      // Extract context window (e.g. "128K")
+      // Find context window (e.g. 128K)
       const ctxMatch = block.match(/([\d.]+K)\s*(?:context)?/i);
       const context = ctxMatch ? ctxMatch[1] : '';
 
