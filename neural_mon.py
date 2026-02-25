@@ -107,6 +107,15 @@ def get_cpu_metrics():
         except: continue
     return cpu_temp, cpu_volts
 
+def get_cpu_name():
+    try:
+        with open('/proc/cpuinfo', 'r') as f:
+            for line in f:
+                if 'model name' in line:
+                    return line.split(':')[1].strip()
+    except: pass
+    return "Unknown Central Node"
+
 def get_npu_metrics():
     npu_util, npu_pwr = "N/A", "N/A"
     if shutil.which('xrt-smi'):
@@ -195,7 +204,11 @@ SKULL = [
     f"{C_RED}    . : : : : 88 : 88 : : : .   {C_END}",
     f"{C_RED}     . : : : : 8 : 8 : : : .    {C_END}",
     f"{C_RED}       = : : : : : : : : =      {C_END}",
-    f"{C_RED}           = : : : : =          {C_END}"
+    f"{C_RED}           = : : : : =          {C_END}",
+    f"{C_RED}              : : :             {C_END}",
+    f"{C_RED}              :::               {C_END}",
+    f"{C_RED}               :                {C_END}",
+    f"{C_RED}               .                {C_END}"
 ]
 
 def pad_str(s, length):
@@ -210,7 +223,7 @@ def make_hash_bar(percent: float, width: int = 10) -> str:
     color = get_color(percent, 60, 85)
     return f"[{color}{'#' * filled}{C_GRY}{'-' * empty}{C_END}]"
 
-def print_dashboard(io_counters_start, time_delta):
+def print_dashboard(io_counters_start, net_counters_start, time_delta):
     gpus = query_amd()
     
     sys_mem = psutil.virtual_memory()
@@ -232,9 +245,31 @@ def print_dashboard(io_counters_start, time_delta):
     npu_util, npu_pwr = get_npu_metrics()
 
     io_counters_end = psutil.disk_io_counters()
+    net_counters_end = psutil.net_io_counters()
+    
     read_speed_mb = ((io_counters_end.read_bytes - io_counters_start.read_bytes) / (1024**2)) / max(0.1, time_delta)
     write_speed_mb = ((io_counters_end.write_bytes - io_counters_start.write_bytes) / (1024**2)) / max(0.1, time_delta)
     disk_usage = psutil.disk_usage('/')
+    
+    net_up_mb = ((net_counters_end.bytes_sent - net_counters_start.bytes_sent) / (1024**2)) / max(0.1, time_delta)
+    net_down_mb = ((net_counters_end.bytes_recv - net_counters_start.bytes_recv) / (1024**2)) / max(0.1, time_delta)
+    
+    cpu_st = psutil.cpu_stats()
+    uptime_sec = time.time() - psutil.boot_time()
+    up_h = int(uptime_sec // 3600)
+    up_m = int((uptime_sec % 3600) // 60)
+    
+    procs = []
+    total_threads = 0
+    try:
+        for p in psutil.process_iter(['name', 'cpu_percent', 'memory_percent', 'num_threads']):
+            try:
+                info = p.info
+                if info['num_threads']: total_threads += info['num_threads']
+                procs.append(info)
+            except: pass
+        procs = sorted(procs, key=lambda p: p['cpu_percent'] or 0, reverse=True)[:2]
+    except: pass
 
     # Build Left Column (System Engine)
     left = []
@@ -254,13 +289,18 @@ def print_dashboard(io_counters_start, time_delta):
     left.append(f" {C_GRY}--------------------------{C_END}")
     left.append(f" {C_YEL}RAM:{C_END} {make_hash_bar(sys_mem.percent, 12)} {get_color(sys_mem.percent, 70, 85)}{sys_mem.percent:>4.1f}%{C_END}")
     left.append(f"      {sys_mem.used/(1024**3):>4.1f}GB / {os_ram_gb:>4.1f}GB")
+    left.append(f" {C_GRY}--------------------------{C_END}")
+    left.append(f" {C_YEL}KERNEL:{C_END} SYS_INT {cpu_st.interrupts}")
+    left.append(f"         CTX_SWT {cpu_st.ctx_switches}")
+    left.append(f" {C_YEL}UPTIME:{C_END} {up_h}h {up_m}m | THRD: {total_threads}")
 
     # Build Right Column (Subsystems / Payload)
     right = []
     right.append(f"{C_B_CYN}:::: EXPLOIT-THE-DATA ::::::{C_END}")
     right.append(f"{C_GRY}============================{C_END}")
-    right.append(f" {C_YEL}DISK IO:{C_END} R:{read_speed_mb:>4.1f} W:{write_speed_mb:>4.1f}MB/s")
-    right.append(f" {C_YEL}CAPAC :{C_END} {make_hash_bar(disk_usage.percent, 12)} {get_color(disk_usage.percent, 80, 95)}{disk_usage.percent:>4.1f}%{C_END}")
+    right.append(f" {C_YEL}NET IO:{C_END} U:{net_up_mb:>4.1f} D:{net_down_mb:>4.1f}MB/s")
+    right.append(f" {C_YEL}DSK IO:{C_END} R:{read_speed_mb:>4.1f} W:{write_speed_mb:>4.1f}MB/s")
+    right.append(f" {C_YEL}DSK % :{C_END} {make_hash_bar(disk_usage.percent, 12)} {get_color(disk_usage.percent, 80, 95)}{disk_usage.percent:>4.1f}%{C_END}")
     right.append(f" {C_GRY}--------------------------{C_END}")
     
     if gpus:
@@ -278,6 +318,12 @@ def print_dashboard(io_counters_start, time_delta):
     n_p = safe_float(n_str) or 0.0
     right.append(f" {C_YEL}NPU :{C_END} {make_hash_bar(n_p, 12)} {get_color(n_p, 80, 95)}{n_p:>4.1f}%{C_END}")
     right.append(f" {C_GRY}--------------------------{C_END}")
+    right.append(f" {C_YEL}DAEMONS:{C_END} (TOP CPU ALLOC)")
+    for p in procs:
+        p_name = str(p['name'])[:12] if p['name'] else "unknown"
+        p_cpu = float(p['cpu_percent']) if p['cpu_percent'] else 0.0
+        p_mem = float(p['memory_percent']) if p['memory_percent'] else 0.0
+        right.append(f"   [{p_name:<12}] {p_cpu:>4.1f}% | {p_mem:>4.1f}%")
 
     # Standardize arrays to length of SKULL
     while len(left) < len(SKULL): left.append("")
@@ -291,10 +337,16 @@ def print_dashboard(io_counters_start, time_delta):
         print(f" {l_str} {c_str} {r_str}\033[K")
         
     print(f"{C_RED}-={C_END}{C_YEL}={C_END}{C_RED}=-"*28)
+    
+    cpu_name = get_cpu_name()
+    gpu_name = gpus[0]['name'] if gpus else "NO GPU DETECTED"
+    
     print(f"{C_RED}+WARNING+ \"Illegal_Network_Connections_Beyond_Login\"{C_END}")
     print(f"{C_YEL}  |H4CK3R|      -= You are at the point of NO RETURN =-      |H4CK3R|{C_END}")
     print(f"{C_YEL}  |______| Your Activities:Will_be_Keylogged_and_Timestamped |______{C_END}")
     print(f"{C_CYN}  NEURAL_DECK_V1 // {phys_ram_gb:.1f}GB TOTAL_SYS_MEM // TARGET_LOCKED{C_END}")
+    print(f"{C_GRY}  CPU_INF: {cpu_name}{C_END}")
+    print(f"{C_GRY}  GPU_INF: {gpu_name}{C_END}")
     print()
 
 # --- 5. Main Execution ---
@@ -306,6 +358,7 @@ def main():
 
     psutil.cpu_percent(interval=None, percpu=True)
     io_counters = psutil.disk_io_counters()
+    net_counters = psutil.net_io_counters()
     last_time = time.time()
 
     if args.tail:
@@ -316,18 +369,19 @@ def main():
                 current_time = time.time()
                 time_delta = current_time - last_time
                 
-                print_dashboard(io_counters, time_delta)
+                print_dashboard(io_counters, net_counters, time_delta)
                 
                 sys.stdout.write("\033[J")
                 sys.stdout.flush()
                 last_time = current_time
                 io_counters = psutil.disk_io_counters()
+                net_counters = psutil.net_io_counters()
                 time.sleep(args.interval)
         except KeyboardInterrupt:
             print("\nMonitoring stopped.\033[0m")
     else:
         time.sleep(0.5) 
-        print_dashboard(io_counters, time.time() - last_time)
+        print_dashboard(io_counters, net_counters, time.time() - last_time)
 
 if __name__ == "__main__":
     main()
