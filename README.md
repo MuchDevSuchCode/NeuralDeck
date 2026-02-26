@@ -17,11 +17,13 @@ A sleek Electron desktop client for [Ollama](https://ollama.com) and [LM Studio]
 ### Core
 - **Streaming chat** — real-time token streaming with stop/cancel support
 - **Multi-provider** — switch between Ollama and LM Studio; URL auto-switches to default ports
-- **Model capability icons** — 👁 vision, 🔧 tool-calling icons in the model dropdown
+- **Model capability icons** — 👁 vision, 🔧 tool-calling, and 🧠 reasoning icons in the model dropdown
+- **Model search & download** — in-app interface to discover, filter, and pull models from the Ollama library
 - **Vision model support** — attach images for analysis with vision-capable models
 - **Image & file attachments** — images (base64) or text files; displayed as chips in chat
 - **Emoji picker** — 8 categorized tabs with search
 - **Performance stats** — tokens/sec and token count on every response
+- **VRAM display** — real-time VRAM usage tracking in the top bar
 
 ### Themes
 
@@ -91,6 +93,7 @@ Settings are auto-saved to `<userData>/config.json` and restored on launch:
 | Top-P | `0.90` | Nucleus sampling threshold (`top_p`). Lower = narrower |
 | Repeat Penalty | `1.10` | Penalize repeated tokens (`repeat_penalty`). Higher = less repetitive |
 | Seed | *(empty)* | Fixed seed for reproducible outputs. Empty = random |
+| SSH Host/User/Key | *(empty)* | Optional credentials for remote system monitoring (e.g. `neural_mon.py`) |
 
 Use the **Default Settings** button at the bottom of the Settings sidebar to restore factory defaults.
 
@@ -131,7 +134,7 @@ Target specific platforms with `npx electron-builder --win` or `npx electron-bui
 
 1. **Provider** — select Ollama or LM Studio from the Provider dropdown
 2. **Connect** — enter your server URL and click the refresh button
-3. **Select a model** — pick from the dropdown (👁 = vision, 🔧 = tool-calling)
+3. **Select a model** — pick from the dropdown (👁 = vision, 🔧 = tool-calling, 🧠 = reasoning) or use the search button to download new ones
 4. **Chat** — type a message and press Enter or click Send
 5. **Ask real-world questions** — 🔧 models can fetch live weather, crypto prices, stock quotes, DNS records, definitions, and more
 6. **Attach files** — use the 📷 (image) or 📎 (file) buttons
