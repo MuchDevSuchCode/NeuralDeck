@@ -20,6 +20,7 @@ A sleek Electron desktop client for [Ollama](https://ollama.com) and [LM Studio]
 - **Model capability icons** — 👁 vision, 🔧 tool-calling, and 🧠 reasoning icons in the model dropdown
 - **Model search & download** — in-app interface to discover, filter, and pull models from the Ollama library
 - **Vision model support** — attach images for analysis with vision-capable models
+- **Reasoning model support** — native detection of thinking models with an adjustable "Thinking Level" (Low, Medium, High)
 - **Image & file attachments** — images (base64) or text files; displayed as chips in chat
 - **Emoji picker** — 8 categorized tabs with search
 - **Performance stats** — tokens/sec and token count on every response
@@ -79,11 +80,12 @@ Settings are auto-saved to `<userData>/config.json` and restored on launch:
 | Provider | `ollama` | Backend: `ollama` or `lmstudio` |
 | Server URL | `http://localhost:11434` | API endpoint (auto-switches port on provider change) |
 | Temperature | `0.7` | Sampling temperature (0 = precise, 2 = creative) |
-| Max Tokens | `2048` | Maximum tokens to generate |
-| Context Length | `4096` | Context window size (`num_ctx`) |
+| Maximum Tokens | `4096` | Maximum tokens to generate |
+| Context Length | `8192` | Context window size (`num_ctx`) |
 | Chunk Size | `512` | Prompt batch size (`num_batch`) |
 | Stream | `true` | Real-time token streaming |
 | Web Tools | `true` | Enable/disable AI tool calling |
+| Thinking Level | *(dynamic)* | Select reasoning effort (Low, Medium, High) for capable models |
 | Agent Name | `Lumen` | Display name for the AI (auto-switches per theme) |
 | Prompt Mode | `default` | `default`, `none`, or `custom` |
 | History Mode | `memory` | `memory` or `disk` |

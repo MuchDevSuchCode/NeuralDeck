@@ -38,6 +38,7 @@ const btnReset = $('#btn-reset');
 const btnAttachImage = $('#btn-attach-image');
 const btnAttachFile = $('#btn-attach-file');
 const attachPreview = $('#attachments-preview');
+const btnEmoji = $('#btn-emoji');
 const emojiPanel = $('#emoji-panel');
 const historyModeEl = $('#history-mode');
 const encryptGroup = $('#encrypt-group');

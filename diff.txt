@@ -1,0 +1,12 @@
+diff --git a/renderer.js b/renderer.js
+index 6150b91..b2c4ff2 100644
+--- a/renderer.js
++++ b/renderer.js
+@@ -38,6 +38,7 @@ const btnReset = $('#btn-reset');
+ const btnAttachImage = $('#btn-attach-image');
+ const btnAttachFile = $('#btn-attach-file');
+ const attachPreview = $('#attachments-preview');
++const btnEmoji = $('#btn-emoji');
+ const emojiPanel = $('#emoji-panel');
+ const historyModeEl = $('#history-mode');
+ const encryptGroup = $('#encrypt-group');
