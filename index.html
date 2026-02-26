@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 
-<body>
+<body class="corpo-theme">
   <!-- ───────── Top Bar ───────── -->
   <header id="topbar">
     <div class="topbar-brand">
@@ -260,6 +260,21 @@
 
       <!-- Input Bar -->
       <div id="attachments-preview" class="hidden"></div>
+
+      <!-- Thinking Level Container -->
+      <div id="thinking-level-container" class="hidden"
+        style="padding: 0 16px 8px; display: flex; justify-content: flex-end;">
+        <div class="input-group">
+          <label for="thinking-level-select">Thinking Level:</label>
+          <select id="thinking-level-select"
+            style="min-width: 100px; padding: 4px 8px; font-size: 11px; font-family: inherit; color: var(--text-primary); background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none; cursor: pointer;">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+      </div>
+
       <div id="input-bar">
         <button id="btn-attach-image" title="Attach image for vision models">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"

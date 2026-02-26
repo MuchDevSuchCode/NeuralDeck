@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('ollama', {
                 name: m.id,
                 vision: false, // LM Studio doesn't expose this in /v1/models
                 tools: false,
+                reasoning: m.id.toLowerCase().includes('think') || m.id.toLowerCase().includes('reasoning') || m.id.toLowerCase().includes('-r1') || m.id.toLowerCase().includes('deepseek'),
             }));
         }
 
@@ -30,6 +31,7 @@ contextBridge.exposeInMainWorld('ollama', {
             name: m.name,
             vision: !!(m.details && m.details.families && m.details.families.includes('clip')),
             tools: false,
+            reasoning: m.name.toLowerCase().includes('think') || m.name.toLowerCase().includes('reasoning') || m.name.toLowerCase().includes('-r1') || m.name.toLowerCase().includes('deepseek'),
         }));
 
         // Detect tool-calling support via /api/show (check template for tool tokens)
@@ -45,6 +47,9 @@ contextBridge.exposeInMainWorld('ollama', {
                     const tmpl = (info.template || '').toLowerCase();
                     if (tmpl.includes('tool') || tmpl.includes('function') || tmpl.includes('<|plugin|>')) {
                         m.tools = true;
+                    }
+                    if (tmpl.includes('<think>')) {
+                        m.reasoning = true;
                     }
                 }
             } catch {

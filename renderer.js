@@ -38,11 +38,12 @@ const btnReset = $('#btn-reset');
 const btnAttachImage = $('#btn-attach-image');
 const btnAttachFile = $('#btn-attach-file');
 const attachPreview = $('#attachments-preview');
-const btnEmoji = $('#btn-emoji');
 const emojiPanel = $('#emoji-panel');
 const historyModeEl = $('#history-mode');
 const encryptGroup = $('#encrypt-group');
 const encryptToggle = $('#encrypt-toggle');
+const thinkingLevelContainer = $('#thinking-level-container');
+const thinkingLevelSelect = $('#thinking-level-select');
 const keyModal = $('#key-modal');
 const keyInput = $('#key-input');
 const keyOk = $('#key-ok');
@@ -492,18 +493,32 @@ function populateModels(models) {
         return;
     }
     models.forEach((m) => {
-        modelCapabilities.set(m.name, { vision: m.vision, tools: m.tools });
+        modelCapabilities.set(m.name, { vision: m.vision, tools: m.tools, reasoning: m.reasoning });
         const opt = document.createElement('option');
         opt.value = m.name;
         let label = m.name;
         const icons = [];
         if (m.vision) icons.push('👁');
         if (m.tools) icons.push('🔧');
+        if (m.reasoning) icons.push('🧠');
         if (icons.length > 0) label = `${icons.join('')} ${label}`;
         opt.textContent = label;
         modelSelect.appendChild(opt);
     });
+
+    // Trigger change to update UI
+    modelSelect.dispatchEvent(new Event('change'));
 }
+
+modelSelect.addEventListener('change', () => {
+    const model = modelSelect.value;
+    const capabilities = modelCapabilities.get(model) || {};
+    if (capabilities.reasoning) {
+        thinkingLevelContainer.classList.remove('hidden');
+    } else {
+        thinkingLevelContainer.classList.add('hidden');
+    }
+});
 
 // ── Refresh models ──────────────────────────────────────────────
 btnRefresh.addEventListener('click', async () => {
@@ -758,6 +773,9 @@ async function sendMessage() {
         return;
     }
 
+    const capabilities = modelCapabilities.get(model) || {};
+    const isReasoning = capabilities.reasoning;
+
     // Gather attachments
     const images = [...pendingImages];
     const files = [...pendingFiles];
@@ -801,6 +819,7 @@ async function sendMessage() {
         }
     }
 
+    const sysMsg = { role: 'system', content: baseSystemPrompt };
     const selectedCaps = modelCapabilities.get(model) || {};
     const useTools = webtoolsToggle.checked && selectedCaps.tools;
 
@@ -1047,6 +1066,11 @@ async function sendMessage() {
     }
 
 
+    if (isReasoning) {
+        const thinkingLevel = thinkingLevelSelect.value; // 'low', 'medium', 'high'
+        options.thinking_level = thinkingLevel;
+        options.reasoning_effort = thinkingLevel; // Send both for compatibility
+    }
 
     const payload = { model, messages, options, stream: useStream };
     if (useTools) {
