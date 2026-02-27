@@ -174,13 +174,12 @@ function getActiveSystemPrompt() {
 function renderMarkdown(text) {
     let html = text;
 
-    // Code blocks (``` ... ```)
+    // Extract code blocks to prevent them from being mangled by paragraph splits
+    const codeBlocks = [];
     html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-        const escaped = code
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;');
-        return `<pre><code class="language-${lang}">${escaped}</code></pre>`;
+        const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
+        codeBlocks.push({ lang, code });
+        return placeholder;
     });
 
     // Inline code
@@ -223,12 +222,63 @@ function renderMarkdown(text) {
             const trimmed = block.trim();
             if (!trimmed) return '';
             if (/^<[a-z]/.test(trimmed)) return trimmed;
+            if (/^__CODE_BLOCK_\d+__$/.test(trimmed)) return trimmed;
             return `<p>${trimmed.replace(/\n/g, '<br/>')}</p>`;
         })
         .join('\n');
 
+    // Restore code blocks with proper syntax highlighting HTML
+    html = html.replace(/__CODE_BLOCK_(\d+)__/g, (_, index) => {
+        const { lang, code } = codeBlocks[index];
+        const escaped = code
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+        const languageLabel = lang ? lang.toUpperCase() : 'TXT';
+        return `
+            <div class="code-block-container">
+                <div class="code-block-header">
+                    <span class="code-block-lang">${languageLabel}</span>
+                    <button class="btn-copy-code">Copy</button>
+                </div>
+                <pre><code class="language-${lang}">${escaped}</code></pre>
+            </div>
+        `;
+    });
+
     return html;
 }
+// ── Code Block Copy Handler ───────────────────────────────────
+document.addEventListener('click', async (e) => {
+    if (e.target && e.target.classList.contains('btn-copy-code')) {
+        const btn = e.target;
+        const container = btn.closest('.code-block-container');
+        if (!container) return;
+
+        const codeElement = container.querySelector('code');
+        if (!codeElement) return;
+
+        try {
+            // Get the text, maintaining newlines but removing extraneous HTML encoded space
+            const codeText = codeElement.innerText || codeElement.textContent;
+            await navigator.clipboard.writeText(codeText);
+
+            btn.textContent = 'Copied!';
+            btn.style.color = 'var(--accent-bright)';
+            btn.style.borderColor = 'var(--accent-bright)';
+
+            setTimeout(() => {
+                btn.textContent = 'Copy';
+                btn.style.color = '';
+                btn.style.borderColor = '';
+            }, 2000);
+        } catch (err) {
+            console.error('Failed to copy code: ', err);
+            btn.textContent = 'Failed';
+            setTimeout(() => btn.textContent = 'Copy', 2000);
+        }
+    }
+});
 
 // ── Helpers ─────────────────────────────────────────────────────
 function setStatus(text, connected = false) {
@@ -1621,11 +1671,11 @@ async function searchOllamaModels(query, sort = '', categories = []) {
         }
         modelSearchResults.innerHTML = models.map((m, i) => {
             const badges = [];
-            if (m.pulls) badges.push(`<span class="model-badge">${m.pulls} pulls</span>`);
-            if (m.tools) badges.push('<span class="model-badge accent">🔧 tools</span>');
-            if (m.vision) badges.push('<span class="model-badge accent">👁 vision</span>');
-            if (m.reasoning) badges.push('<span class="model-badge accent">🧠 reasoning</span>');
-            m.sizes.forEach(s => badges.push(`<span class="model-badge">${s}</span>`));
+            if (m.pulls) badges.push(`<span class="model-badge" title="Number of downloads from the Ollama registry">${m.pulls} pulls</span>`);
+            if (m.tools) badges.push('<span class="model-badge accent" title="Supports tool calling using external APIs or functions">🔧 tools</span>');
+            if (m.vision) badges.push('<span class="model-badge accent" title="Multimodal: can process and analyze image attachments">👁 vision</span>');
+            if (m.reasoning) badges.push('<span class="model-badge accent" title="Reasoning model: capable of extended analytical thinking before generating an answer">🧠 reasoning</span>');
+            m.sizes.forEach(s => badges.push(`<span class="model-badge" title="Model parameter size (e.g., billions of parameters)">${s}</span>`));
             return `<div class="model-result-card" id="model-card-${i}">
                 <div class="model-result-info">
                     <div class="model-result-name">${m.name}</div>
@@ -1678,10 +1728,12 @@ async function expandModelTags(modelName, idx, btn) {
 
         container.innerHTML = '<div class="model-tags-list">' + result.data.map(t => {
             const fullName = `${modelName}:${t.tag}`;
-            const info = [t.size, t.context ? t.context + ' ctx' : ''].filter(Boolean).join(' · ');
+            const info = [];
+            if (t.size) info.push(`<span title="File size on disk">${t.size}</span>`);
+            if (t.context) info.push(`<span title="Maximum context window size">${t.context} ctx</span>`);
             return `<div class="model-tag-row">
                 <span class="model-tag-name">${t.tag}</span>
-                <span class="model-tag-size">${info}</span>
+                <span class="model-tag-size">${info.join(' &middot; ')}</span>
                 <button class="btn-pull-sm" data-model="${fullName}">⬇</button>
             </div>`;
         }).join('') + '</div>';
