@@ -1993,7 +1993,8 @@ providerSelect.addEventListener('change', () => {
         }
 
         const urlObj = new URL(currentUrl);
-        const targetPort = providerSelect.value === 'lmstudio' ? '1234' : '11434';
+        const provider = providerSelect.value;
+        const targetPort = provider === 'lmstudio' ? '1234' : provider === 'llamacpp' ? '8080' : '11434';
 
         if (urlObj.port !== targetPort) {
             urlObj.port = targetPort;
@@ -2021,16 +2022,18 @@ modelSelect.addEventListener('change', async () => {
     // reset VRAM display to show it's updating
     if (vramCount) vramCount.textContent = '...';
 
-    // Send a warmup request to force-load the model into VRAM
+    // Send a warmup request to force-load the model into VRAM (Ollama only)
     try {
         const base = serverUrl.value.replace(/\/+$/, '');
-        // We use a generate request with empty prompt to trigger load
-        // "keep_alive" defaults to 5m usually, which is fine.
-        await fetch(`${base}/api/generate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: model, prompt: '' })
-        });
+        if (providerSelect.value === 'ollama') {
+            // We use a generate request with empty prompt to trigger load
+            // "keep_alive" defaults to 5m usually, which is fine.
+            await fetch(`${base}/api/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: model, prompt: '' })
+            });
+        }
 
         // After warmup, check VRAM immediately
         await updateVRAM();

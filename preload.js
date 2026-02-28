@@ -6,12 +6,12 @@ contextBridge.exposeInMainWorld('ollama', {
     /**
      * Fetch the list of locally available models.
      * @param {string} baseUrl - e.g. "http://localhost:11434"
-     * @param {string} provider - 'ollama' or 'lmstudio'
+     * @param {string} provider - 'ollama', 'lmstudio', or 'llamacpp'
      * @returns {Promise<{name: string, vision: boolean, tools: boolean}[]>} model info
      */
     async fetchModels(baseUrl, provider = 'ollama') {
-        if (provider === 'lmstudio') {
-            // LM Studio uses OpenAI-compatible /v1/models
+        if (provider === 'lmstudio' || provider === 'llamacpp') {
+            // LM Studio and llama.cpp use OpenAI-compatible /v1/models
             const res = await fetch(`${baseUrl}/v1/models`);
             if (!res.ok) throw new Error(`Failed to fetch models: ${res.status}`);
             const data = await res.json();
@@ -66,13 +66,13 @@ contextBridge.exposeInMainWorld('ollama', {
      * @param {object} payload  - { model, messages, options, stream, tools? }
      * @param {boolean} useStream - whether to stream tokens
      * @param {function} onToken - called with each token string
-     * @param {string} provider - 'ollama' or 'lmstudio'
+     * @param {string} provider - 'ollama', 'lmstudio', or 'llamacpp'
      * @returns {Promise<object>} stats + optional toolCalls
      */
     async chat(baseUrl, payload, useStream, onToken, provider = 'ollama') {
         abortController = new AbortController();
 
-        if (provider === 'lmstudio') {
+        if (provider === 'lmstudio' || provider === 'llamacpp') {
             return this._chatOpenAI(baseUrl, payload, useStream, onToken);
         }
         return this._chatOllama(baseUrl, payload, useStream, onToken);
@@ -206,7 +206,7 @@ contextBridge.exposeInMainWorld('ollama', {
 
             if (!res.ok) {
                 const text = await res.text();
-                throw new Error(`LM Studio error ${res.status}: ${text}`);
+                throw new Error(`OpenAI-compat error ${res.status}: ${text}`);
             }
 
             if (!useStream) {
