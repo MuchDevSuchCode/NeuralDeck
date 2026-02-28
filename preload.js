@@ -15,12 +15,41 @@ contextBridge.exposeInMainWorld('ollama', {
             const res = await fetch(`${baseUrl}/v1/models`);
             if (!res.ok) throw new Error(`Failed to fetch models: ${res.status}`);
             const data = await res.json();
-            return (data.data || []).map((m) => ({
-                name: m.id,
-                vision: false, // LM Studio doesn't expose this in /v1/models
-                tools: false,
-                reasoning: m.id.toLowerCase().includes('think') || m.id.toLowerCase().includes('reasoning') || m.id.toLowerCase().includes('-r1') || m.id.toLowerCase().includes('deepseek'),
-            }));
+
+            // ── llama.cpp: probe /props for capability detection ──
+            const VISION_KEYWORDS = ['vision', 'llava', '-vl-', 'minicpm-v', 'moondream', 'pixtral', 'qwen2-vl', 'qwen3-vl'];
+            let propsTools = false;
+            let propsReasoning = false;
+            let propsVision = false;
+            if (provider === 'llamacpp') {
+                try {
+                    const propsRes = await fetch(`${baseUrl}/props`);
+                    if (propsRes.ok) {
+                        const props = await propsRes.json();
+                        const caps = props.chat_template_caps || {};
+                        const tmpl = (props.chat_template || '').toLowerCase();
+                        // Tools: structured capability flag, or scan template for tool tokens
+                        propsTools = !!(caps.supports_tools || tmpl.includes('tool') || tmpl.includes('function') || tmpl.includes('<|plugin|>'));
+                        // Reasoning: look for <think> token in the chat template
+                        propsReasoning = tmpl.includes('<think>');
+                        // Vision: check model_path for common vision model keywords
+                        const modelPath = (props.model_path || '').toLowerCase();
+                        propsVision = VISION_KEYWORDS.some(kw => modelPath.includes(kw));
+                    }
+                } catch {
+                    // /props not available — fall back to name heuristics below
+                }
+            }
+
+            return (data.data || []).map((m) => {
+                const id = m.id.toLowerCase();
+                return {
+                    name: m.id,
+                    vision: propsVision || VISION_KEYWORDS.some(kw => id.includes(kw)),
+                    tools: propsTools,
+                    reasoning: propsReasoning || id.includes('think') || id.includes('reasoning') || id.includes('-r1') || id.includes('deepseek'),
+                };
+            });
         }
 
         // Ollama: /api/tags + /api/show for capability detection
