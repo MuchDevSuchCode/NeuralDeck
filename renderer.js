@@ -1178,6 +1178,8 @@ async function sendMessage() {
             let tokensPerSec = null;
             if (stats && stats.eval_count && stats.eval_duration) {
                 tokensPerSec = (stats.eval_count / (stats.eval_duration / 1e9)).toFixed(1);
+            } else if (stats && stats.tokens_per_sec) {
+                tokensPerSec = stats.tokens_per_sec.toFixed(1);
             }
 
             const meta = document.createElement('span');
@@ -1364,6 +1366,8 @@ async function sendMessage() {
             let tokensPerSec = null;
             if (result && result.eval_count && result.eval_duration) {
                 tokensPerSec = (result.eval_count / (result.eval_duration / 1e9)).toFixed(1);
+            } else if (result && result.tokens_per_sec) {
+                tokensPerSec = result.tokens_per_sec.toFixed(1);
             }
 
             const meta = document.createElement('span');

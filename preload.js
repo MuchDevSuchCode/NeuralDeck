@@ -245,13 +245,21 @@ contextBridge.exposeInMainWorld('ollama', {
                     onToken(choice.message.content);
                 }
                 const usage = data.usage || {};
+                // llama.cpp includes a timings object with predicted_per_second, predicted_n, prompt_n, etc.
+                const timings = data.timings || {};
+                let evalDuration = null;
+                let evalCount = usage.completion_tokens || timings.predicted_n || null;
+                if (timings.predicted_per_second && evalCount) {
+                    // Convert to nanoseconds: duration_ns = (tokens / tokens_per_sec) * 1e9
+                    evalDuration = Math.round((evalCount / timings.predicted_per_second) * 1e9);
+                }
                 abortController = null;
                 return {
-                    eval_count: usage.completion_tokens || null,
-                    // Convert to nanoseconds to match Ollama format for tok/s calculation
-                    eval_duration: null,
-                    prompt_eval_count: usage.prompt_tokens || null,
-                    prompt_eval_duration: null,
+                    eval_count: evalCount,
+                    eval_duration: evalDuration,
+                    prompt_eval_count: usage.prompt_tokens || timings.prompt_n || null,
+                    prompt_eval_duration: timings.prompt_ms ? Math.round(timings.prompt_ms * 1e6) : null,
+                    tokens_per_sec: timings.predicted_per_second || null,
                     toolCalls: choice && choice.message && choice.message.tool_calls
                         ? choice.message.tool_calls : null,
                 };
@@ -263,6 +271,7 @@ contextBridge.exposeInMainWorld('ollama', {
             let buffer = '';
             let tokenCount = 0;
             let toolCalls = null;
+            let streamTimings = null;
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -279,6 +288,12 @@ contextBridge.exposeInMainWorld('ollama', {
 
                     try {
                         const obj = JSON.parse(trimmed.slice(6));
+                        // llama.cpp includes timings in the final SSE chunk or in usage events
+                        if (obj.timings) streamTimings = obj.timings;
+                        if (obj.usage) {
+                            streamTimings = streamTimings || {};
+                            streamTimings._usage = obj.usage;
+                        }
                         const delta = obj.choices && obj.choices[0] && obj.choices[0].delta;
                         if (delta && delta.content) {
                             onToken(delta.content);
@@ -324,11 +339,29 @@ contextBridge.exposeInMainWorld('ollama', {
             }
 
             abortController = null;
+            // Use llama.cpp timings if available, otherwise fall back to token count
+            let evalCount = tokenCount || null;
+            let evalDuration = null;
+            let promptEvalCount = null;
+            let promptEvalDuration = null;
+            let tokPerSec = null;
+            if (streamTimings) {
+                evalCount = streamTimings.predicted_n || evalCount;
+                promptEvalCount = streamTimings.prompt_n || (streamTimings._usage && streamTimings._usage.prompt_tokens) || null;
+                if (streamTimings.predicted_per_second && evalCount) {
+                    evalDuration = Math.round((evalCount / streamTimings.predicted_per_second) * 1e9);
+                    tokPerSec = streamTimings.predicted_per_second;
+                }
+                if (streamTimings.prompt_ms) {
+                    promptEvalDuration = Math.round(streamTimings.prompt_ms * 1e6);
+                }
+            }
             return {
-                eval_count: tokenCount || null,
-                eval_duration: null,
-                prompt_eval_count: null,
-                prompt_eval_duration: null,
+                eval_count: evalCount,
+                eval_duration: evalDuration,
+                prompt_eval_count: promptEvalCount,
+                prompt_eval_duration: promptEvalDuration,
+                tokens_per_sec: tokPerSec,
                 toolCalls,
             };
         } catch (err) {
