@@ -58,8 +58,6 @@ const sshConfigGroup = $('#ssh-config-group');
 const sshHost = $('#ssh-host');
 const sshUser = $('#ssh-user');
 const sshKey = $('#ssh-key');
-const googleApiKey = $('#google-api-key');
-const googleCx = $('#google-cx');
 const themeSelect = $('#theme-select');
 const brandTitle = document.querySelector('.brand-title');
 
@@ -97,8 +95,6 @@ const DEFAULT_SETTINGS = {
     sshHost: '',
     sshUser: '',
     sshKey: '',
-    googleApiKey: '',
-    googleCx: '',
     isRedTheme: false,
     theme: 'corpo',
     gpuLayers: -1,
@@ -410,8 +406,6 @@ btnReset.addEventListener('click', async () => {
         sshHost.value = DEFAULT_SETTINGS.sshHost;
         sshUser.value = DEFAULT_SETTINGS.sshUser;
         sshKey.value = DEFAULT_SETTINGS.sshKey;
-        googleApiKey.value = DEFAULT_SETTINGS.googleApiKey;
-        googleCx.value = DEFAULT_SETTINGS.googleCx;
         document.body.classList.remove('red-theme');
         themeSelect.value = DEFAULT_SETTINGS.theme;
         applyThemeClass(DEFAULT_SETTINGS.theme);
@@ -1291,7 +1285,7 @@ async function sendMessage() {
                         } else if (toolName === 'get_ip_info') {
                             toolResult = await window.ollama.webIP(args.address || null);
                         } else if (toolName === 'web_search') {
-                            toolResult = await window.ollama.webSearch(args.query, googleApiKey.value, googleCx.value);
+                            toolResult = await window.ollama.webSearch(args.query);
                         } else if (toolName === 'search_cve') {
                             setStatus(`Searching CVE database for "${args.query}"...`, true);
                             toolResult = await window.ollama.webCVE(args.query);
@@ -1962,8 +1956,6 @@ function gatherSettings() {
         sshHost: sshHost.value,
         sshUser: sshUser.value,
         sshKey: sshKey.value,
-        googleApiKey: googleApiKey.value,
-        googleCx: googleCx.value,
         isRedTheme: document.body.classList.contains('red-theme'),
         theme: themeSelect.value,
         gpuLayers: gpuLayersEl.value,
@@ -2089,8 +2081,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (cfg.sshHost) sshHost.value = cfg.sshHost;
     if (cfg.sshUser) sshUser.value = cfg.sshUser;
     if (cfg.sshKey) sshKey.value = cfg.sshKey;
-    if (cfg.googleApiKey) googleApiKey.value = cfg.googleApiKey;
-    if (cfg.googleCx) googleCx.value = cfg.googleCx;
     if (cfg.gpuLayers !== undefined) gpuLayersEl.value = cfg.gpuLayers;
     if (cfg.topK !== undefined) { topKSlider.value = cfg.topK; topKValue.textContent = cfg.topK; }
     if (cfg.topP !== undefined) { topPSlider.value = cfg.topP; topPValue.textContent = parseFloat(cfg.topP).toFixed(2); }

@@ -228,22 +228,56 @@ ipcMain.handle('web:ip', async (_event, address) => {
   }
 });
 
-// Web search via Google Custom Search JSON API
-ipcMain.handle('web:search', async (_event, query, apiKey, cx) => {
+// Web search via DuckDuckGo Lite (HTML scraping — no API key needed)
+ipcMain.handle('web:search', async (_event, query) => {
   try {
-    if (!apiKey || !cx) {
-      return { success: false, error: 'Google Search API key and Search Engine ID are required. Configure them in Settings → Advanced → Google Search API.' };
+    const url = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`;
+    const res = await net.fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const html = await res.text();
+
+    const results = [];
+    // Extract results using regex on DDG Lite HTML structure:
+    // Title + URL: <a class="result-link" href="//duckduckgo.com/l/?uddg=ENCODED_URL...">Title</a>
+    // Snippet: <td class="result-snippet">Description text</td>
+    const linkRegex = /<a[^>]*class="result-link"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+    const snippetRegex = /<td[^>]*class="result-snippet"[^>]*>([\s\S]*?)<\/td>/gi;
+
+    const links = [];
+    let m;
+    while ((m = linkRegex.exec(html)) !== null) {
+      const rawHref = m[1];
+      const title = m[2].replace(/<[^>]+>/g, '').trim();
+      // Extract actual URL from the uddg redirect parameter
+      let link = rawHref;
+      const uddgMatch = rawHref.match(/[?&]uddg=([^&]+)/);
+      if (uddgMatch) {
+        link = decodeURIComponent(uddgMatch[1]);
+      } else if (rawHref.startsWith('//')) {
+        link = 'https:' + rawHref;
+      }
+      links.push({ title, link });
     }
-    const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(apiKey)}&cx=${encodeURIComponent(cx)}&q=${encodeURIComponent(query)}&num=5`;
-    const data = await fetchJSON(url);
-    if (data.error) {
-      return { success: false, error: data.error.message || 'Google API error' };
+
+    const snippets = [];
+    while ((m = snippetRegex.exec(html)) !== null) {
+      snippets.push(m[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/\s+/g, ' ').trim());
     }
-    const results = (data.items || []).map(item => ({
-      title: item.title || '',
-      snippet: item.snippet || '',
-      link: item.link || '',
-    }));
+
+    for (let i = 0; i < Math.min(links.length, 5); i++) {
+      results.push({
+        title: links[i].title,
+        link: links[i].link,
+        snippet: snippets[i] || '',
+      });
+    }
+
     if (results.length === 0) {
       return { success: true, data: { query, message: `No results found for "${query}".`, results: [] } };
     }

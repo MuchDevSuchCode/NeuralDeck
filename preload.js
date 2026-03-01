@@ -431,7 +431,7 @@ contextBridge.exposeInMainWorld('ollama', {
     webWeather: (city) => ipcRenderer.invoke('web:weather', city),
     webTime: (location) => ipcRenderer.invoke('web:time', location),
     webIP: (address) => ipcRenderer.invoke('web:ip', address),
-    webSearch: (query, apiKey, cx) => ipcRenderer.invoke('web:search', query, apiKey, cx),
+    webSearch: (query) => ipcRenderer.invoke('web:search', query),
     webCVE: (query) => ipcRenderer.invoke('web:cve', query),
     webUrlFetch: (url) => ipcRenderer.invoke('web:url_fetch', url),
     webNews: (topic) => ipcRenderer.invoke('web:news', topic),
