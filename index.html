@@ -170,6 +170,21 @@
           <input type="number" id="seed" min="0" max="999999999" value="" placeholder="Random (empty)" />
           <p class="param-hint">Set a fixed seed for reproducible outputs</p>
         </div>
+
+        <h2 style="margin-top: 12px;">Google Search API</h2>
+        <div class="param-group">
+          <label for="google-api-key">API Key</label>
+          <input type="password" id="google-api-key" placeholder="Enter Google API key…" spellcheck="false"
+            autocomplete="off" />
+          <p class="param-hint">Required for the web_search tool. <a
+              href="https://developers.google.com/custom-search/v1/introduction" target="_blank"
+              style="color: var(--accent);">Get a key →</a></p>
+        </div>
+        <div class="param-group">
+          <label for="google-cx">Search Engine ID</label>
+          <input type="text" id="google-cx" placeholder="Enter Custom Search Engine ID…" spellcheck="false" />
+          <p class="param-hint">Programmable Search Engine CX ID</p>
+        </div>
       </details>
 
       <details id="history-section">

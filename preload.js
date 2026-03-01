@@ -215,9 +215,39 @@ contextBridge.exposeInMainWorld('ollama', {
             // Convert Ollama payload to OpenAI format
             const openaiPayload = {
                 model: payload.model,
-                messages: payload.messages,
                 stream: useStream,
             };
+
+            // Convert messages: ensure tool-related messages use OpenAI format
+            openaiPayload.messages = (payload.messages || []).map((msg) => {
+                if (msg.role === 'assistant' && msg.tool_calls) {
+                    // Ensure tool_calls have id, type, and stringified arguments
+                    return {
+                        role: 'assistant',
+                        content: msg.content || null,
+                        tool_calls: msg.tool_calls.map((tc, i) => ({
+                            id: tc.id || `call_${i}`,
+                            type: tc.type || 'function',
+                            function: {
+                                name: tc.function.name,
+                                arguments: typeof tc.function.arguments === 'string'
+                                    ? tc.function.arguments
+                                    : JSON.stringify(tc.function.arguments || {}),
+                            },
+                        })),
+                    };
+                }
+                if (msg.role === 'tool') {
+                    // OpenAI requires tool_call_id, not tool_name
+                    return {
+                        role: 'tool',
+                        content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
+                        tool_call_id: msg.tool_call_id || msg.tool_name || 'call_0',
+                    };
+                }
+                return msg;
+            });
+
             if (payload.options) {
                 if (payload.options.temperature !== undefined) openaiPayload.temperature = payload.options.temperature;
                 if (payload.options.num_predict !== undefined) openaiPayload.max_tokens = payload.options.num_predict;
@@ -401,7 +431,7 @@ contextBridge.exposeInMainWorld('ollama', {
     webWeather: (city) => ipcRenderer.invoke('web:weather', city),
     webTime: (location) => ipcRenderer.invoke('web:time', location),
     webIP: (address) => ipcRenderer.invoke('web:ip', address),
-    webSearch: (query) => ipcRenderer.invoke('web:search', query),
+    webSearch: (query, apiKey, cx) => ipcRenderer.invoke('web:search', query, apiKey, cx),
     webCVE: (query) => ipcRenderer.invoke('web:cve', query),
     webUrlFetch: (url) => ipcRenderer.invoke('web:url_fetch', url),
     webNews: (topic) => ipcRenderer.invoke('web:news', topic),

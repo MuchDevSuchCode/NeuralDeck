@@ -228,26 +228,26 @@ ipcMain.handle('web:ip', async (_event, address) => {
   }
 });
 
-// Web search via DuckDuckGo Instant Answer API
-ipcMain.handle('web:search', async (_event, query) => {
+// Web search via Google Custom Search JSON API
+ipcMain.handle('web:search', async (_event, query, apiKey, cx) => {
   try {
-    const data = await fetchJSON(
-      `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`
-    );
-    return {
-      success: true,
-      data: {
-        heading: data.Heading || '',
-        abstract: data.AbstractText || '',
-        source: data.AbstractSource || '',
-        url: data.AbstractURL || '',
-        answer: data.Answer || '',
-        related: (data.RelatedTopics || []).slice(0, 5).map((t) => ({
-          text: t.Text || '',
-          url: t.FirstURL || '',
-        })).filter((t) => t.text),
-      },
-    };
+    if (!apiKey || !cx) {
+      return { success: false, error: 'Google Search API key and Search Engine ID are required. Configure them in Settings → Advanced → Google Search API.' };
+    }
+    const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(apiKey)}&cx=${encodeURIComponent(cx)}&q=${encodeURIComponent(query)}&num=5`;
+    const data = await fetchJSON(url);
+    if (data.error) {
+      return { success: false, error: data.error.message || 'Google API error' };
+    }
+    const results = (data.items || []).map(item => ({
+      title: item.title || '',
+      snippet: item.snippet || '',
+      link: item.link || '',
+    }));
+    if (results.length === 0) {
+      return { success: true, data: { query, message: `No results found for "${query}".`, results: [] } };
+    }
+    return { success: true, data: { query, results } };
   } catch (err) {
     return { success: false, error: err.message };
   }

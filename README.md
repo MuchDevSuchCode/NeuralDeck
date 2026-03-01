@@ -40,14 +40,14 @@ Neural Deck ships with three built-in themes, selectable from the Settings sideb
 
 ### AI Tool Calling (12 Tools)
 
-Models with the 🔧 icon support tool calling. The model autonomously decides when to invoke tools based on your questions — just like Gemini or ChatGPT. All APIs are **free and require no API keys**.
+Models with the 🔧 icon support tool calling. The model autonomously decides when to invoke tools based on your questions — just like Gemini or ChatGPT. Most APIs are **free and require no API keys** — except `web_search` which uses Google Custom Search (see [setup](#google-custom-search-setup)).
 
 | Tool | API Source | Description |
 |------|-----------|-------------|
 | `get_weather` | [Open-Meteo](https://open-meteo.com) | Current conditions + 3-day forecast for any city |
 | `get_time` | [WorldTimeAPI](https://worldtimeapi.org) | Current local time in any city/timezone |
 | `get_ip_info` | [ip-api.com](http://ip-api.com) | IP geolocation lookup (defaults to your IP) |
-| `web_search` | [DuckDuckGo](https://duckduckgo.com) | Quick factual web lookup |
+| `web_search` | [Google Custom Search](https://developers.google.com/custom-search) | Web search (requires API key — [setup](#google-custom-search-setup)) |
 | `search_cve` | [NIST NVD](https://nvd.nist.gov) | CVE vulnerability search by keyword |
 | `url_fetch` | Electron `net` | Fetch & extract plain text from any URL (up to 4000 chars) |
 | `get_news` | [DuckDuckGo](https://duckduckgo.com) | Current headlines and info about a topic |
@@ -95,9 +95,36 @@ Settings are auto-saved to `<userData>/config.json` and restored on launch:
 | Top-P | `0.90` | Nucleus sampling threshold (`top_p`). Lower = narrower |
 | Repeat Penalty | `1.10` | Penalize repeated tokens (`repeat_penalty`). Higher = less repetitive |
 | Seed | *(empty)* | Fixed seed for reproducible outputs. Empty = random |
+| Google API Key | *(empty)* | API key for Google Custom Search ([setup](#google-custom-search-setup)) |
+| Google CX | *(empty)* | Programmable Search Engine ID |
 | SSH Host/User/Key | *(empty)* | Optional credentials for remote system monitoring (e.g. `neural_mon.py`) |
 
 Use the **Default Settings** button at the bottom of the Settings sidebar to restore factory defaults.
+
+### Google Custom Search Setup
+
+The `web_search` tool requires a Google API key and a Programmable Search Engine ID. Both are free:
+
+1. **Get an API Key**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+   - Create a project (or select an existing one)
+   - Click **Create Credentials → API Key**
+   - Copy the key
+
+2. **Create a Search Engine**
+   - Go to [Programmable Search Engine](https://programmablesearchengine.google.com/controlpanel/all)
+   - Click **Add** → set "Search the entire web" → **Create**
+   - Copy the **Search Engine ID** (cx)
+
+3. **Enable the API**
+   - Go to [Custom Search API](https://console.cloud.google.com/apis/library/customsearch.googleapis.com) in Cloud Console
+   - Click **Enable**
+
+4. **Enter in Neural Deck**
+   - Open **Settings → Advanced → Google Search API**
+   - Paste your API Key and Search Engine ID
+
+> **Free tier:** 100 queries/day. For higher usage, enable billing in Google Cloud Console ($5 per 1000 queries).
 
 ## Prerequisites
 
