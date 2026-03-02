@@ -239,28 +239,33 @@ ipcMain.handle('web:search', async (_event, query) => {
         'Accept-Language': 'en-US,en;q=0.9',
       },
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      console.error(`DDG Lite search failed: HTTP ${res.status}`);
+      throw new Error(`HTTP ${res.status}`);
+    }
     const html = await res.text();
 
     const results = [];
-    // Extract results using regex on DDG Lite HTML structure:
-    // Title + URL: <a class="result-link" href="//duckduckgo.com/l/?uddg=ENCODED_URL...">Title</a>
-    // Snippet: <td class="result-snippet">Description text</td>
-    const linkRegex = /<a[^>]*class="result-link"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
-    const snippetRegex = /<td[^>]*class="result-snippet"[^>]*>([\s\S]*?)<\/td>/gi;
+    const linkRegex = /<a[^>]+class='result-link'[^>]*>([\s\S]*?)<\/a>/gi;
+    const hrefRegex = /href="([^"]*)"/i;
+    const snippetRegex = /<td[^>]+class='result-snippet'[^>]*>([\s\S]*?)<\/td>/gi;
 
     const links = [];
     let m;
     while ((m = linkRegex.exec(html)) !== null) {
-      const rawHref = m[1];
-      const title = m[2].replace(/<[^>]+>/g, '').trim();
-      // Extract actual URL from the uddg redirect parameter
-      let link = rawHref;
-      const uddgMatch = rawHref.match(/[?&]uddg=([^&]+)/);
-      if (uddgMatch) {
-        link = decodeURIComponent(uddgMatch[1]);
-      } else if (rawHref.startsWith('//')) {
-        link = 'https:' + rawHref;
+      const hrefMatch = m[0].match(hrefRegex);
+      const title = m[1].replace(/<[^>]+>/g, '').trim();
+      let link = '';
+      if (hrefMatch) {
+        const rawHref = hrefMatch[1];
+        const uddgMatch = rawHref.match(/[?&]uddg=([^&]+)/);
+        if (uddgMatch) {
+          link = decodeURIComponent(uddgMatch[1]);
+        } else if (rawHref.startsWith('//')) {
+          link = 'https:' + rawHref;
+        } else {
+          link = rawHref;
+        }
       }
       links.push({ title, link });
     }
@@ -279,10 +284,12 @@ ipcMain.handle('web:search', async (_event, query) => {
     }
 
     if (results.length === 0) {
+      console.error(`DDG Lite search: no results found for query "${query}". HTML snippet:`, html.substring(0, 500));
       return { success: true, data: { query, message: `No results found for "${query}".`, results: [] } };
     }
     return { success: true, data: { query, results } };
   } catch (err) {
+    console.error('DDG Lite Search Exception:', err);
     return { success: false, error: err.message };
   }
 });
