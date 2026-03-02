@@ -34,12 +34,18 @@
           <option value="ollama">Ollama</option>
           <option value="lmstudio">LM Studio</option>
           <option value="llamacpp">llama.cpp</option>
+          <option value="openai">OpenAI API</option>
         </select>
       </div>
 
       <div class="input-group server-group">
         <label for="server-url">Server</label>
         <input type="text" id="server-url" value="http://localhost:11434" spellcheck="false" />
+      </div>
+
+      <div class="input-group api-key-group" id="api-key-container" style="display: none;">
+        <label for="api-key">API Key</label>
+        <input type="password" id="api-key" placeholder="sk-..." spellcheck="false" />
       </div>
 
       <div class="input-group model-group">

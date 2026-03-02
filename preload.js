@@ -9,7 +9,26 @@ contextBridge.exposeInMainWorld('ollama', {
      * @param {string} provider - 'ollama', 'lmstudio', or 'llamacpp'
      * @returns {Promise<{name: string, vision: boolean, tools: boolean}[]>} model info
      */
-    async fetchModels(baseUrl, provider = 'ollama') {
+    async fetchModels(baseUrl, provider = 'ollama', apiKey = '') {
+        if (provider === 'openai') {
+            const res = await fetch(`${baseUrl}/v1/models`, {
+                headers: { 'Authorization': `Bearer ${apiKey}` }
+            });
+            if (!res.ok) throw new Error(`Failed to fetch models: ${res.status}`);
+            const data = await res.json();
+
+            // OpenAI capabilities heuristic
+            return (data.data || []).map((m) => {
+                const id = m.id.toLowerCase();
+                return {
+                    name: m.id,
+                    vision: id.includes('vision') || id.includes('gpt-4o') || id.includes('o1') || id.includes('o3'),
+                    tools: true, // Most modern OpenAI models support tools
+                    reasoning: id.includes('o1') || id.includes('o3') || id.includes('reasoning'),
+                };
+            });
+        }
+
         if (provider === 'lmstudio' || provider === 'llamacpp') {
             // LM Studio and llama.cpp use OpenAI-compatible /v1/models
             const res = await fetch(`${baseUrl}/v1/models`);
@@ -95,14 +114,15 @@ contextBridge.exposeInMainWorld('ollama', {
      * @param {object} payload  - { model, messages, options, stream, tools? }
      * @param {boolean} useStream - whether to stream tokens
      * @param {function} onToken - called with each token string
-     * @param {string} provider - 'ollama', 'lmstudio', or 'llamacpp'
+     * @param {string} provider - 'ollama', 'lmstudio', 'llamacpp', or 'openai'
+     * @param {string} apiKey - API key for the provider
      * @returns {Promise<object>} stats + optional toolCalls
      */
-    async chat(baseUrl, payload, useStream, onToken, provider = 'ollama') {
+    async chat(baseUrl, payload, useStream, onToken, provider = 'ollama', apiKey = '') {
         abortController = new AbortController();
 
-        if (provider === 'lmstudio' || provider === 'llamacpp') {
-            return this._chatOpenAI(baseUrl, payload, useStream, onToken);
+        if (provider === 'lmstudio' || provider === 'llamacpp' || provider === 'openai') {
+            return this._chatOpenAI(baseUrl, payload, useStream, onToken, apiKey);
         }
         return this._chatOllama(baseUrl, payload, useStream, onToken);
     },
@@ -210,7 +230,7 @@ contextBridge.exposeInMainWorld('ollama', {
     },
 
     // ── LM Studio / OpenAI-compatible API ────────────────────────
-    async _chatOpenAI(baseUrl, payload, useStream, onToken) {
+    async _chatOpenAI(baseUrl, payload, useStream, onToken, apiKey = '') {
         try {
             // Convert Ollama payload to OpenAI format
             const openaiPayload = {
@@ -256,9 +276,14 @@ contextBridge.exposeInMainWorld('ollama', {
                 openaiPayload.tools = payload.tools;
             }
 
+            const headers = { 'Content-Type': 'application/json' };
+            if (apiKey) {
+                headers['Authorization'] = `Bearer ${apiKey}`;
+            }
+
             const res = await fetch(`${baseUrl}/v1/chat/completions`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: headers,
                 body: JSON.stringify(openaiPayload),
                 signal: abortController.signal,
             });

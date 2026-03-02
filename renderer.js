@@ -5,6 +5,8 @@
 // ── DOM refs ────────────────────────────────────────────────────
 const $ = (sel) => document.querySelector(sel);
 const serverUrl = $('#server-url');
+const apiKContainer = $('#api-key-container');
+const apiKeyInput = $('#api-key');
 const providerSelect = $('#provider-select');
 const modelSelect = $('#model-select');
 const btnRefresh = $('#btn-refresh');
@@ -101,7 +103,8 @@ const DEFAULT_SETTINGS = {
     topK: 40,
     topP: 0.9,
     repeatPenalty: 1.1,
-    seed: ''
+    seed: '',
+    apiKey: ''
 };
 
 // ... existing code ...
@@ -578,7 +581,7 @@ btnRefresh.addEventListener('click', async () => {
     setStatus('Fetching models…');
 
     try {
-        const models = await window.ollama.fetchModels(base, providerSelect.value);
+        const models = await window.ollama.fetchModels(base, providerSelect.value, apiKeyInput.value);
         populateModels(models);
         if (models.length === 0) {
             setStatus('No models found');
@@ -794,7 +797,7 @@ async function sendMessage() {
                             fullResponse += token;
                             ansDiv.innerHTML = renderMarkdown(fullResponse);
                             scrollToBottom();
-                        }, providerSelect.value);
+                        }, providerSelect.value, apiKeyInput.value);
 
                         updateContextBar(slashStats);
                         chatHistory.push({ role: 'assistant', content: fullResponse });
@@ -1202,7 +1205,7 @@ async function sendMessage() {
             let initialPayload = { ...payload, stream: false };
             let result = await window.ollama.chat(base, initialPayload, false, (token) => {
                 fullResponse += token;
-            }, providerSelect.value);
+            }, providerSelect.value, apiKeyInput.value);
             scrollToBottom(true);
             let toolCallRound = 0;
             const MAX_TOOL_ROUNDS = 5;
@@ -1327,7 +1330,7 @@ async function sendMessage() {
                 assistantDiv.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
                 result = await window.ollama.chat(base, { ...payload, messages, stream: false }, false, (token) => {
                     fullResponse += token;
-                }, providerSelect.value);
+                }, providerSelect.value, apiKeyInput.value);
             }
 
             // If no tool calls were made, use the content from the non-streaming response directly
@@ -1349,7 +1352,7 @@ async function sendMessage() {
                     fullResponse += token;
                     assistantDiv.innerHTML = renderMarkdown(fullResponse);
                     scrollToBottom();
-                }, providerSelect.value);
+                }, providerSelect.value, apiKeyInput.value);
             }
 
             chatHistory.push({ role: 'assistant', content: fullResponse });
@@ -1799,7 +1802,7 @@ async function pullOllamaModel(modelName, btn) {
 
         // Auto-refresh model list
         try {
-            const models = await window.ollama.fetchModels(base, providerSelect.value);
+            const models = await window.ollama.fetchModels(base, providerSelect.value, apiKeyInput.value);
             populateModels(models);
             setStatus(`Model downloaded — ${models.length} model(s)`, true);
         } catch { /* ignore refresh errors */ }
@@ -1962,7 +1965,8 @@ function gatherSettings() {
         topK: topKSlider.value,
         topP: topPSlider.value,
         repeatPenalty: repeatPenaltySlider.value,
-        seed: seedEl.value
+        seed: seedEl.value,
+        apiKey: apiKeyInput.value
     };
 }
 
@@ -1975,7 +1979,7 @@ function autoSave() {
 }
 
 // Listen for changes on all settings controls
-[serverUrl, maxTokensEl, ctxLengthEl, chunkSizeEl, agentNameEl, systemPrompt, sshHost, sshUser, sshKey].forEach((el) => {
+[serverUrl, maxTokensEl, ctxLengthEl, chunkSizeEl, agentNameEl, systemPrompt, sshHost, sshUser, sshKey, apiKeyInput].forEach((el) => {
     el.addEventListener('input', autoSave);
 });
 tempSlider.addEventListener('input', autoSave);
@@ -2000,12 +2004,26 @@ providerSelect.addEventListener('change', () => {
         const provider = providerSelect.value;
         const targetPort = provider === 'lmstudio' ? '1234' : provider === 'llamacpp' ? '8080' : '11434';
 
-        if (urlObj.port !== targetPort) {
+
+        if (urlObj.port !== targetPort && targetPort !== '443') {
             urlObj.port = targetPort;
-            // Remove trailing slash if present
-            serverUrl.value = urlObj.toString().replace(/\/$/, '');
-            autoSave(); // Save the new URL
+        } else if (targetPort === '443') { // OpenAI default
+            urlObj.port = '';
         }
+
+        serverUrl.value = urlObj.toString().replace(/\/$/, '');
+
+        // Handle UI toggles and defaults
+        if (provider === 'openai') {
+            apiKContainer.style.display = 'flex';
+            if (serverUrl.value === 'http://localhost:11434' || serverUrl.value === '') {
+                serverUrl.value = 'https://api.openai.com';
+            }
+        } else {
+            apiKContainer.style.display = 'none';
+        }
+
+        autoSave(); // Save the new URL
         // Force VRAM UI update
         updateVRAM();
     } catch (e) {
@@ -2060,8 +2078,14 @@ promptModeEl.addEventListener('change', () => {
 window.addEventListener('DOMContentLoaded', async () => {
     const cfg = await window.ollama.loadConfig();
 
-    if (cfg.provider) providerSelect.value = cfg.provider;
+    if (cfg.provider) {
+        providerSelect.value = cfg.provider;
+        if (cfg.provider === 'openai') {
+            apiKContainer.style.display = 'flex';
+        }
+    }
     if (cfg.serverUrl) serverUrl.value = cfg.serverUrl;
+    if (cfg.apiKey) apiKeyInput.value = cfg.apiKey;
     if (cfg.temperature) {
         tempSlider.value = cfg.temperature;
         tempValue.textContent = parseFloat(cfg.temperature).toFixed(2);
@@ -2103,7 +2127,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     showLoader('ESTABLISHING UPLINK...');
 
     try {
-        const models = await window.ollama.fetchModels(base, providerSelect.value);
+        const models = await window.ollama.fetchModels(base, providerSelect.value, apiKeyInput.value);
         populateModels(models);
         // Restore saved model if available
         if (cfg.model && models.some((m) => m.name === cfg.model)) {
