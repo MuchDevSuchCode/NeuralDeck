@@ -2002,7 +2002,7 @@ providerSelect.addEventListener('change', () => {
 
         const urlObj = new URL(currentUrl);
         const provider = providerSelect.value;
-        const targetPort = provider === 'lmstudio' ? '1234' : provider === 'llamacpp' ? '8080' : '11434';
+        const targetPort = (provider === 'lmstudio' || provider === 'openai') ? '1234' : provider === 'llamacpp' ? '8080' : '11434';
 
 
         if (urlObj.port !== targetPort && targetPort !== '443') {
@@ -2016,9 +2016,6 @@ providerSelect.addEventListener('change', () => {
         // Handle UI toggles and defaults
         if (provider === 'openai') {
             apiKContainer.style.display = 'flex';
-            if (serverUrl.value === 'http://localhost:11434' || serverUrl.value === '') {
-                serverUrl.value = 'https://api.openai.com';
-            }
         } else {
             apiKContainer.style.display = 'none';
         }
