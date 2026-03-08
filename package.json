@@ -1,16 +1,27 @@
 {
   "name": "neural-deck",
   "version": "1.0.0",
-  "description": "Neural Deck — Electron GUI client for Ollama",
+  "description": "Neural Deck — Univeral AI Client for Ollama, llama.cpp and LM Studio.",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "npx electron .",
+    "dev": "npx electron . --dev",
+    "build": "electron-builder --win portable"
+  },
+  "author": "",
+  "license": "MIT",
+  "build": {
+    "appId": "com.neuraldeck.app",
+    "productName": "Neural Deck",
+    "win": {
+      "target": "portable"
+    },
+    "portable": {
+      "artifactName": "${name}_${version}_standalone.exe"
+    }
   },
   "devDependencies": {
-    "electron": "^34.0.0"
-  },
-  "dependencies": {
-    "googlethis": "^1.8.0",
-    "marked": "^15.0.0"
+    "electron": "^33.0.0",
+    "electron-builder": "^26.8.1"
   }
 }
