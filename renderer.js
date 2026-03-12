@@ -1405,26 +1405,13 @@ async function sendMessage() {
                 }, providerSelect.value, apiKeyInput.value);
             }
 
-            // If no tool calls were made, use the content from the non-streaming response directly
-            if (toolCallRound === 0 && fullResponse) {
+            // Render the latest non-streaming assistant result from the tool loop.
+            if (fullResponse) {
                 assistantDiv.innerHTML = renderMarkdown(fullResponse);
-                scrollToBottom();
             } else {
-                // After tool calls, do a final streaming pass for the nice typing UX
-                fullResponse = '';
-                const finalPayload = { ...payload, messages, stream: useStream };
-                delete finalPayload.tools;
-                assistantDiv.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
-
-                const streamRenderer = createStreamingRenderer(assistantDiv);
-                result = await window.ollama.chat(base, finalPayload, useStream, (token) => {
-                    if (!streamRenderer.hasText()) {
-                        hideLoader();
-                    }
-                    streamRenderer.push(token);
-                }, providerSelect.value, apiKeyInput.value);
-                fullResponse = streamRenderer.finalize();
+                assistantDiv.innerHTML = renderMarkdown('> No response generated.');
             }
+            scrollToBottom();
 
             chatHistory.push({ role: 'assistant', content: fullResponse });
             persistHistory();

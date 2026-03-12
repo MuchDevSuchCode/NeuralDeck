@@ -1,0 +1,76 @@
+{
+  "productName": "Neural Deck",
+  "directories": {
+    "output": "dist"
+  },
+  "appId": "com.neuraldeck.app",
+  "linux": {
+    "target": [
+      {
+        "arch": [
+          "x64"
+        ],
+        "target": "AppImage"
+      },
+      {
+        "arch": [
+          "x64"
+        ],
+        "target": "deb"
+      },
+      {
+        "arch": [
+          "x64"
+        ],
+        "target": "tar.gz"
+      }
+    ],
+    "icon": "assets/icons",
+    "category": "Utility",
+    "desktop": {
+      "Name": "Neural Deck",
+      "Comment": "Universal AI client for local and OpenAI-compatible backends",
+      "Categories": "Utility;Development;"
+    }
+  },
+  "nsis": {
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "oneClick": false,
+    "createDesktopShortcut": true
+  },
+  "win": {
+    "icon": "assets/icons/icon.ico",
+    "target": [
+      {
+        "arch": [
+          "x64"
+        ],
+        "target": "portable"
+      },
+      {
+        "arch": [
+          "x64"
+        ],
+        "target": "nsis"
+      }
+    ]
+  },
+  "files": [
+    "index.html",
+    "renderer.js",
+    "main.js",
+    "preload.js",
+    "styles.css",
+    "ndicon.png",
+    "ndlogo.png",
+    "assets/**",
+    "package.json"
+  ],
+  "extraMetadata": {
+    "main": "main.js"
+  },
+  "portable": {
+    "artifactName": "neural-deck_${version}_windows_portable.exe"
+  }
+}

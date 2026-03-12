@@ -67,9 +67,9 @@ ipcMain.handle('dialog:pickFile', async () => {
 // ── Chat history persistence ────────────────────────────────────
 const crypto = require('crypto');
 const scryptAsync = promisify(crypto.scrypt);
-const historyDir = path.join(__dirname, 'chat_history');
-if (!fs.existsSync(historyDir)) {
-  fs.mkdirSync(historyDir, { recursive: true });
+const historyDir = path.join(app.getPath('userData'), 'chat_history');
+async function ensureHistoryDir() {
+  await fsp.mkdir(historyDir, { recursive: true });
 }
 
 const HISTORY_FILE = path.join(historyDir, 'current.json');
@@ -100,6 +100,7 @@ async function decryptData(buffer, passphrase) {
 
 ipcMain.handle('history:save', async (_event, messages, encrypt, passphrase) => {
   try {
+    await ensureHistoryDir();
     const json = JSON.stringify(messages, null, 2);
     if (encrypt && passphrase) {
       const encrypted = await encryptData(json, passphrase);
@@ -119,6 +120,7 @@ ipcMain.handle('history:save', async (_event, messages, encrypt, passphrase) => 
 
 ipcMain.handle('history:load', async (_event, encrypt, passphrase) => {
   try {
+    await ensureHistoryDir();
     if (encrypt && passphrase) {
       const buffer = await fsp.readFile(HISTORY_FILE_ENC).catch(() => null);
       if (!buffer) return { success: true, messages: [] };
@@ -136,6 +138,7 @@ ipcMain.handle('history:load', async (_event, encrypt, passphrase) => {
 
 ipcMain.handle('history:clear', async () => {
   try {
+    await ensureHistoryDir();
     await Promise.all([
       fsp.unlink(HISTORY_FILE).catch(() => {}),
       fsp.unlink(HISTORY_FILE_ENC).catch(() => {}),

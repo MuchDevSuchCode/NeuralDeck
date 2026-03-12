@@ -54,6 +54,15 @@
   --radius-md: 8px;
   --radius-lg: 12px;
 
+  /* Compatibility aliases */
+  --text-dim: var(--text-secondary);
+  --border-color: var(--border);
+  --accent-color: var(--accent);
+  --text-color: var(--text-primary);
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  --bg-dark: var(--bg-primary);
+  --accent-hover: var(--accent-dim);
+
   /* Animation */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }

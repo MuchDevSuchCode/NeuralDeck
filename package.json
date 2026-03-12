@@ -6,7 +6,10 @@
   "scripts": {
     "start": "npx electron .",
     "dev": "npx electron . --dev",
-    "build": "electron-builder --win portable"
+    "build": "electron-builder --win portable",
+    "test": "node --test --experimental-test-isolation=none tests/*.test.js",
+    "build:win": "electron-builder --config electron-builder.windows-linux.json --win",
+    "build:linux": "electron-builder --config electron-builder.windows-linux.json --linux"
   },
   "author": "",
   "license": "MIT",
