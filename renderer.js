@@ -467,6 +467,45 @@ function scrollToBottom(force = false) {
     messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
 }
 
+function createStreamingRenderer(targetEl) {
+    let buffered = '';
+    let rafId = null;
+    let started = false;
+
+    const paint = () => {
+        rafId = null;
+        if (!started) {
+            targetEl.innerHTML = '';
+            started = true;
+        }
+        targetEl.textContent = buffered;
+        scrollToBottom();
+    };
+
+    return {
+        push(token) {
+            buffered += token;
+            if (rafId === null) {
+                rafId = requestAnimationFrame(paint);
+            }
+        },
+        hasText() {
+            return buffered.length > 0;
+        },
+        finalize() {
+            if (rafId !== null) {
+                cancelAnimationFrame(rafId);
+                rafId = null;
+            }
+            if (!started) {
+                targetEl.innerHTML = '';
+            }
+            targetEl.innerHTML = renderMarkdown(buffered);
+            scrollToBottom();
+            return buffered;
+        },
+    };
+}
 function clearWelcome() {
     const welcome = messagesEl.querySelector('.welcome-message');
     if (welcome) welcome.remove();
@@ -822,19 +861,21 @@ async function sendMessage() {
                         stream: streamToggle.checked
                     };
 
+                    const streamRenderer = createStreamingRenderer(ansDiv);
                     let fullResponse = '';
                     try {
-                        const slashStats = await window.ollama.chat(serverUrl.value.replace(/[\\/]+$/, ''), payload, streamToggle.checked, (token) => {
-                            if (!fullResponse) ansDiv.innerHTML = '';
-                            fullResponse += token;
-                            ansDiv.innerHTML = renderMarkdown(fullResponse);
-                            scrollToBottom();
+                        const slashStats = await window.ollama.chat(serverUrl.value.replace(/[\/]+$/, ''), payload, streamToggle.checked, (token) => {
+                            streamRenderer.push(token);
                         }, providerSelect.value, apiKeyInput.value);
 
+                        fullResponse = streamRenderer.finalize();
                         updateContextBar(slashStats);
                         chatHistory.push({ role: 'assistant', content: fullResponse });
                         persistHistory();
                     } catch (err) {
+                        if (streamRenderer.hasText()) {
+                            fullResponse = streamRenderer.finalize();
+                        }
                         showError('Analysis failed: ' + err.message);
                         ansDiv.innerHTML = renderMarkdown(`> Analysis failed: ${err.message}`);
                     }
@@ -1195,15 +1236,14 @@ async function sendMessage() {
 
         if (!useTools) {
             // ── No tools — single streaming request ─────────────
+            const streamRenderer = createStreamingRenderer(assistantDiv);
             const stats = await window.ollama.chat(base, payload, useStream, (token) => {
-                if (!fullResponse) {
-                    assistantDiv.innerHTML = ''; // remove typing indicator
+                if (!streamRenderer.hasText()) {
                     hideLoader();
                 }
-                fullResponse += token;
-                assistantDiv.innerHTML = renderMarkdown(fullResponse);
-                scrollToBottom();
+                streamRenderer.push(token);
             }, providerSelect.value);
+            fullResponse = streamRenderer.finalize();
 
             chatHistory.push({ role: 'assistant', content: fullResponse });
             persistHistory();
@@ -1376,15 +1416,14 @@ async function sendMessage() {
                 delete finalPayload.tools;
                 assistantDiv.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
 
+                const streamRenderer = createStreamingRenderer(assistantDiv);
                 result = await window.ollama.chat(base, finalPayload, useStream, (token) => {
-                    if (!fullResponse) {
-                        assistantDiv.innerHTML = '';
+                    if (!streamRenderer.hasText()) {
                         hideLoader();
                     }
-                    fullResponse += token;
-                    assistantDiv.innerHTML = renderMarkdown(fullResponse);
-                    scrollToBottom();
+                    streamRenderer.push(token);
                 }, providerSelect.value, apiKeyInput.value);
+                fullResponse = streamRenderer.finalize();
             }
 
             chatHistory.push({ role: 'assistant', content: fullResponse });

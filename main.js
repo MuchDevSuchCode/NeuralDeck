@@ -1,27 +1,31 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu, MenuItem } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { promisify } = require('util');
+const fsp = fs.promises;
 
 // ── Config persistence ──────────────────────────────────────────
 const configPath = path.join(app.getPath('userData'), 'config.json');
 
-function loadConfig() {
+async function loadConfig() {
   try {
-    if (fs.existsSync(configPath)) {
-      return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-    }
+    const json = await fsp.readFile(configPath, 'utf-8');
+    return JSON.parse(json);
   } catch {
-    // corrupted config — return defaults
+    // missing/corrupted config — return defaults
+    return {};
   }
-  return {};
 }
 
-function saveConfig(data) {
-  fs.writeFileSync(configPath, JSON.stringify(data, null, 2), 'utf-8');
+async function saveConfig(data) {
+  await fsp.writeFile(configPath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
-ipcMain.handle('config:load', () => loadConfig());
-ipcMain.handle('config:save', (_event, data) => saveConfig(data));
+ipcMain.handle('config:load', async () => loadConfig());
+ipcMain.handle('config:save', async (_event, data) => {
+  await saveConfig(data);
+  return { success: true };
+});
 ipcMain.handle('config:path', () => configPath);
 
 // ── File picker handlers ────────────────────────────────────────
@@ -32,11 +36,13 @@ ipcMain.handle('dialog:pickImage', async () => {
     properties: ['openFile', 'multiSelections'],
   });
   if (canceled || filePaths.length === 0) return [];
-  return filePaths.map((fp) => ({
+
+  const files = await Promise.all(filePaths.map(async (fp) => ({
     path: fp,
     name: path.basename(fp),
-    base64: fs.readFileSync(fp).toString('base64'),
-  }));
+    base64: (await fsp.readFile(fp)).toString('base64'),
+  })));
+  return files;
 });
 
 ipcMain.handle('dialog:pickFile', async () => {
@@ -45,19 +51,22 @@ ipcMain.handle('dialog:pickFile', async () => {
     properties: ['openFile', 'multiSelections'],
   });
   if (canceled || filePaths.length === 0) return [];
-  return filePaths.map((fp) => {
+
+  const files = await Promise.all(filePaths.map(async (fp) => {
     let content;
     try {
-      content = fs.readFileSync(fp, 'utf-8');
+      content = await fsp.readFile(fp, 'utf-8');
     } catch {
       content = '[Binary file — cannot display as text]';
     }
     return { path: fp, name: path.basename(fp), content };
-  });
+  }));
+  return files;
 });
 
 // ── Chat history persistence ────────────────────────────────────
 const crypto = require('crypto');
+const scryptAsync = promisify(crypto.scrypt);
 const historyDir = path.join(__dirname, 'chat_history');
 if (!fs.existsSync(historyDir)) {
   fs.mkdirSync(historyDir, { recursive: true });
@@ -66,9 +75,9 @@ if (!fs.existsSync(historyDir)) {
 const HISTORY_FILE = path.join(historyDir, 'current.json');
 const HISTORY_FILE_ENC = path.join(historyDir, 'current.enc');
 
-function encryptData(plaintext, passphrase) {
+async function encryptData(plaintext, passphrase) {
   const salt = crypto.randomBytes(16);
-  const key = crypto.scryptSync(passphrase, salt, 32);
+  const key = await scryptAsync(passphrase, salt, 32);
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
   const encrypted = Buffer.concat([cipher.update(plaintext, 'utf-8'), cipher.final()]);
@@ -77,30 +86,30 @@ function encryptData(plaintext, passphrase) {
   return Buffer.concat([salt, iv, authTag, encrypted]);
 }
 
-function decryptData(buffer, passphrase) {
+async function decryptData(buffer, passphrase) {
   const salt = buffer.subarray(0, 16);
   const iv = buffer.subarray(16, 28);
   const authTag = buffer.subarray(28, 44);
   const ciphertext = buffer.subarray(44);
-  const key = crypto.scryptSync(passphrase, salt, 32);
+  const key = await scryptAsync(passphrase, salt, 32);
   const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
   decipher.setAuthTag(authTag);
   const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
   return decrypted.toString('utf-8');
 }
 
-ipcMain.handle('history:save', (_event, messages, encrypt, passphrase) => {
+ipcMain.handle('history:save', async (_event, messages, encrypt, passphrase) => {
   try {
     const json = JSON.stringify(messages, null, 2);
     if (encrypt && passphrase) {
-      const encrypted = encryptData(json, passphrase);
-      fs.writeFileSync(HISTORY_FILE_ENC, encrypted);
+      const encrypted = await encryptData(json, passphrase);
+      await fsp.writeFile(HISTORY_FILE_ENC, encrypted);
       // Remove unencrypted file if it exists
-      if (fs.existsSync(HISTORY_FILE)) fs.unlinkSync(HISTORY_FILE);
+      await fsp.unlink(HISTORY_FILE).catch(() => {});
     } else {
-      fs.writeFileSync(HISTORY_FILE, json, 'utf-8');
+      await fsp.writeFile(HISTORY_FILE, json, 'utf-8');
       // Remove encrypted file if it exists
-      if (fs.existsSync(HISTORY_FILE_ENC)) fs.unlinkSync(HISTORY_FILE_ENC);
+      await fsp.unlink(HISTORY_FILE_ENC).catch(() => {});
     }
     return { success: true };
   } catch (err) {
@@ -108,27 +117,29 @@ ipcMain.handle('history:save', (_event, messages, encrypt, passphrase) => {
   }
 });
 
-ipcMain.handle('history:load', (_event, encrypt, passphrase) => {
+ipcMain.handle('history:load', async (_event, encrypt, passphrase) => {
   try {
     if (encrypt && passphrase) {
-      if (!fs.existsSync(HISTORY_FILE_ENC)) return { success: true, messages: [] };
-      const buffer = fs.readFileSync(HISTORY_FILE_ENC);
-      const json = decryptData(buffer, passphrase);
-      return { success: true, messages: JSON.parse(json) };
-    } else {
-      if (!fs.existsSync(HISTORY_FILE)) return { success: true, messages: [] };
-      const json = fs.readFileSync(HISTORY_FILE, 'utf-8');
+      const buffer = await fsp.readFile(HISTORY_FILE_ENC).catch(() => null);
+      if (!buffer) return { success: true, messages: [] };
+      const json = await decryptData(buffer, passphrase);
       return { success: true, messages: JSON.parse(json) };
     }
+
+    const json = await fsp.readFile(HISTORY_FILE, 'utf-8').catch(() => null);
+    if (!json) return { success: true, messages: [] };
+    return { success: true, messages: JSON.parse(json) };
   } catch (err) {
     return { success: false, error: err.message };
   }
 });
 
-ipcMain.handle('history:clear', () => {
+ipcMain.handle('history:clear', async () => {
   try {
-    if (fs.existsSync(HISTORY_FILE)) fs.unlinkSync(HISTORY_FILE);
-    if (fs.existsSync(HISTORY_FILE_ENC)) fs.unlinkSync(HISTORY_FILE_ENC);
+    await Promise.all([
+      fsp.unlink(HISTORY_FILE).catch(() => {}),
+      fsp.unlink(HISTORY_FILE_ENC).catch(() => {}),
+    ]);
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message };
