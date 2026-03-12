@@ -603,66 +603,122 @@ ipcMain.handle('web:model_tags', async (_event, modelName) => {
 });
 
 // ── SSH handler ───────────────────────────────────────────────
-const { exec } = require('child_process');
+const { spawn } = require('child_process');
 
-ipcMain.handle('ssh:connect', async (_event, host, username, privateKeyPath) => {
+function normalizeSshInput(value, label) {
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    throw new Error(`Missing required SSH field: ${label}`);
+  }
+  if (/[\r\n\0]/.test(normalized)) {
+    throw new Error(`Invalid ${label}: contains control characters`);
+  }
+  return normalized;
+}
+
+function normalizeKeyPath(privateKeyPath) {
+  if (!privateKeyPath) return '';
+  let keyPath = String(privateKeyPath).trim();
+  if (!keyPath) return '';
+  if (keyPath.startsWith('~')) {
+    keyPath = path.join(require('os').homedir(), keyPath.slice(1));
+  }
+  if (/[\r\n\0]/.test(keyPath)) {
+    throw new Error('Invalid SSH key path: contains control characters');
+  }
+  return keyPath;
+}
+
+function runSsh(args, timeoutMs) {
   return new Promise((resolve) => {
-    let keyArg = '';
-    if (privateKeyPath) {
-      let keyPath = privateKeyPath;
-      if (keyPath.startsWith('~')) {
-        keyPath = path.join(require('os').homedir(), keyPath.slice(1));
+    const child = spawn('ssh', args, {
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+    let settled = false;
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGTERM');
+    }, timeoutMs);
+
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on('error', (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ success: false, error: err.message });
+    });
+    child.on('close', (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      const output = `${stdout}\n${stderr}`.trim();
+      if (timedOut) {
+        resolve({ success: false, error: `SSH command timed out after ${Math.round(timeoutMs / 1000)}s` });
+        return;
       }
-      keyArg = `-i "${keyPath}"`;
-    }
-
-    // Run a simple command over SSH to validate connection and fetch basic banner/OS info
-    // -o BatchMode=yes prevents password prompts from hanging the process
-    // -o StrictHostKeyChecking=no auto-accepts new host keys
-    const cmd = `ssh -v -o BatchMode=yes -o StrictHostKeyChecking=no ${keyArg} ${username}@${host} "cat /etc/os-release || uname -a"`;
-
-    exec(cmd, { timeout: 15000 }, (error, stdout, stderr) => {
-      // The -v flag prints banner info to stderr. We can extract it or just return both.
-      const output = (stdout + '\n' + stderr).trim();
-
-      if (error) {
-        // Did we actually connect but the command failed, or did connection fail?
-        if (error.code === 255) {
-          resolve({ success: false, error: 'SSH Connection Failed (Code 255):\n' + stderr });
-        } else {
-          resolve({ success: true, banner: 'Connected with errors:\n' + output });
-        }
-      } else {
-        // Success
-        resolve({ success: true, banner: output });
+      if (code !== 0) {
+        resolve({ success: false, error: output || `SSH exited with code ${code}` });
+        return;
       }
+      resolve({ success: true, output });
     });
   });
+}
+
+ipcMain.handle('ssh:connect', async (_event, host, username, privateKeyPath) => {
+  try {
+    const safeHost = normalizeSshInput(host, 'host');
+    const safeUser = normalizeSshInput(username, 'username');
+    const keyPath = normalizeKeyPath(privateKeyPath);
+
+    const args = ['-v', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=no'];
+    if (keyPath) {
+      args.push('-i', keyPath);
+    }
+    args.push(`${safeUser}@${safeHost}`, 'cat /etc/os-release || uname -a');
+
+    const result = await runSsh(args, 15000);
+    if (!result.success) {
+      return { success: false, error: `SSH Connection Failed:\n${result.error}` };
+    }
+    return { success: true, banner: result.output };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
 });
 
 ipcMain.handle('ssh:run', async (_event, host, username, privateKeyPath, remoteCmd) => {
-  return new Promise((resolve) => {
-    let keyArg = '';
-    if (privateKeyPath) {
-      let keyPath = privateKeyPath;
-      if (keyPath.startsWith('~')) {
-        keyPath = path.join(require('os').homedir(), keyPath.slice(1));
-      }
-      keyArg = `-i "${keyPath}"`;
+  try {
+    const safeHost = normalizeSshInput(host, 'host');
+    const safeUser = normalizeSshInput(username, 'username');
+    const keyPath = normalizeKeyPath(privateKeyPath);
+    const command = normalizeSshInput(remoteCmd, 'remoteCmd');
+
+    const args = ['-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=no'];
+    if (keyPath) {
+      args.push('-i', keyPath);
     }
+    args.push(`${safeUser}@${safeHost}`, command);
 
-    const escapedCmd = remoteCmd.replace(/"/g, '\\"');
-    const cmd = `ssh -o BatchMode=yes -o StrictHostKeyChecking=no ${keyArg} ${username}@${host} "${escapedCmd}"`;
-
-    exec(cmd, { timeout: 120000 }, (error, stdout, stderr) => {
-      const output = (stdout + '\n' + stderr).trim();
-      if (error) {
-        resolve({ success: false, error: output || error.message });
-      } else {
-        resolve({ success: true, output });
-      }
-    });
-  });
+    const result = await runSsh(args, 120000);
+    if (!result.success) {
+      return { success: false, error: result.error };
+    }
+    return { success: true, output: result.output };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
 });
 
 function createWindow() {

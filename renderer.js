@@ -172,18 +172,48 @@ function getActiveSystemPrompt() {
     }
     return DEFAULT_SYSTEM_PROMPT;
 }
+function escapeHtml(text) {
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function escapeAttr(text) {
+    return escapeHtml(text);
+}
+
+function sanitizeUrl(rawUrl) {
+    const trimmed = String(rawUrl || '').trim();
+    if (!trimmed) return null;
+
+    try {
+        const parsed = new URL(trimmed);
+        const protocol = parsed.protocol.toLowerCase();
+        if (protocol === 'http:' || protocol === 'https:' || protocol === 'mailto:') {
+            return parsed.toString();
+        }
+        return null;
+    } catch {
+        return null;
+    }
+}
 
 // ── Simple markdown renderer ────────────────────────────────────
 function renderMarkdown(text) {
-    let html = text;
+    let source = String(text ?? '');
 
-    // Extract code blocks to prevent them from being mangled by paragraph splits
+    // Extract code blocks before markdown transforms.
     const codeBlocks = [];
-    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+    source = source.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
         const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
         codeBlocks.push({ lang, code });
         return placeholder;
     });
+
+    let html = escapeHtml(source);
 
     // Inline code
     html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
@@ -201,7 +231,7 @@ function renderMarkdown(text) {
     html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
 
     // Blockquotes
-    html = html.replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>');
+    html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
 
     // Unordered lists
     html = html.replace(/^[*-] (.+)$/gm, '<li>$1</li>');
@@ -212,8 +242,12 @@ function renderMarkdown(text) {
     // Ordered lists
     html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
 
-    // Links
-    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+    // Links (protocol-restricted)
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => {
+        const safeHref = sanitizeUrl(href);
+        if (!safeHref) return label;
+        return `<a href="${escapeAttr(safeHref)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+    });
 
     // Horizontal rules
     html = html.replace(/^---$/gm, '<hr/>');
@@ -230,21 +264,19 @@ function renderMarkdown(text) {
         })
         .join('\n');
 
-    // Restore code blocks with proper syntax highlighting HTML
+    // Restore code blocks
     html = html.replace(/__CODE_BLOCK_(\d+)__/g, (_, index) => {
         const { lang, code } = codeBlocks[index];
-        const escaped = code
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;');
-        const languageLabel = lang ? lang.toUpperCase() : 'TXT';
+        const escapedCode = escapeHtml(code);
+        const safeLangClass = String(lang || '').toLowerCase().replace(/[^a-z0-9_+-]/g, '');
+        const languageLabel = (lang ? String(lang) : 'TXT').toUpperCase().replace(/[^A-Z0-9_+#.-]/g, '');
         return `
             <div class="code-block-container">
                 <div class="code-block-header">
-                    <span class="code-block-lang">${languageLabel}</span>
+                    <span class="code-block-lang">${languageLabel || 'TXT'}</span>
                     <button class="btn-copy-code">Copy</button>
                 </div>
-                <pre><code class="language-${lang}">${escaped}</code></pre>
+                <pre><code class="language-${escapeAttr(safeLangClass)}">${escapedCode}</code></pre>
             </div>
         `;
     });
@@ -1668,7 +1700,7 @@ async function searchOllamaModels(query, sort = '', categories = []) {
     try {
         const result = await window.ollama.searchModels(query, sort, categories);
         if (!result.success) {
-            modelSearchResults.innerHTML = `<p class="model-search-hint">Error: ${result.error}</p>`;
+            modelSearchResults.innerHTML = `<p class="model-search-hint">Error: ${escapeHtml(result.error || 'Unknown error')}</p>`;
             return;
         }
         const models = result.data;
@@ -1677,22 +1709,24 @@ async function searchOllamaModels(query, sort = '', categories = []) {
             return;
         }
         modelSearchResults.innerHTML = models.map((m, i) => {
+            const safeName = escapeHtml(m.name || '');
+            const safeDescription = escapeHtml(m.description || 'No description');
             const badges = [];
-            if (m.pulls) badges.push(`<span class="model-badge" title="Number of downloads from the Ollama registry">${m.pulls} pulls</span>`);
+            if (m.pulls) badges.push(`<span class="model-badge" title="Number of downloads from the Ollama registry">${escapeHtml(m.pulls)} pulls</span>`);
             if (m.tools) badges.push('<span class="model-badge accent" title="Supports tool calling using external APIs or functions">🔧 tools</span>');
             if (m.vision) badges.push('<span class="model-badge accent" title="Multimodal: can process and analyze image attachments">👁 vision</span>');
             if (m.reasoning) badges.push('<span class="model-badge accent" title="Reasoning model: capable of extended analytical thinking before generating an answer">🧠 reasoning</span>');
-            m.sizes.forEach(s => badges.push(`<span class="model-badge" title="Model parameter size (e.g., billions of parameters)">${s}</span>`));
+            m.sizes.forEach(s => badges.push(`<span class="model-badge" title="Model parameter size (e.g., billions of parameters)">${escapeHtml(s)}</span>`));
             return `<div class="model-result-card" id="model-card-${i}">
                 <div class="model-result-info">
-                    <div class="model-result-name">${m.name}</div>
-                    <div class="model-result-desc">${m.description || 'No description'}</div>
+                    <div class="model-result-name">${safeName}</div>
+                    <div class="model-result-desc">${safeDescription}</div>
                     <div class="model-result-meta">${badges.join('')}</div>
                     <div class="model-tags-container" id="model-tags-${i}"></div>
                 </div>
                 <div class="model-result-actions">
-                    <button class="btn-versions" data-model="${m.name}" data-idx="${i}">Versions</button>
-                    <button class="btn-pull" data-model="${m.name}">Download</button>
+                    <button class="btn-versions" data-model="${escapeAttr(m.name || '')}" data-idx="${i}">Versions</button>
+                    <button class="btn-pull" data-model="${escapeAttr(m.name || '')}">Download</button>
                 </div>
             </div>`;
         }).join('');
@@ -1707,7 +1741,7 @@ async function searchOllamaModels(query, sort = '', categories = []) {
             btn.addEventListener('click', () => expandModelTags(btn.dataset.model, btn.dataset.idx, btn));
         });
     } catch (err) {
-        modelSearchResults.innerHTML = `<p class="model-search-hint">Search failed: ${err.message}</p>`;
+        modelSearchResults.innerHTML = `<p class="model-search-hint">Search failed: ${escapeHtml(err.message || 'Unknown error')}</p>`;
     }
 }
 
@@ -1734,14 +1768,17 @@ async function expandModelTags(modelName, idx, btn) {
         }
 
         container.innerHTML = '<div class="model-tags-list">' + result.data.map(t => {
+            const safeTag = escapeHtml(t.tag || '');
+            const safeSize = escapeHtml(t.size || '');
+            const safeContext = escapeHtml(t.context || '');
             const fullName = `${modelName}:${t.tag}`;
             const info = [];
-            if (t.size) info.push(`<span title="File size on disk">${t.size}</span>`);
-            if (t.context) info.push(`<span title="Maximum context window size">${t.context} ctx</span>`);
+            if (t.size) info.push(`<span title="File size on disk">${safeSize}</span>`);
+            if (t.context) info.push(`<span title="Maximum context window size">${safeContext} ctx</span>`);
             return `<div class="model-tag-row">
-                <span class="model-tag-name">${t.tag}</span>
+                <span class="model-tag-name">${safeTag}</span>
                 <span class="model-tag-size">${info.join(' &middot; ')}</span>
-                <button class="btn-pull-sm" data-model="${fullName}">⬇</button>
+                <button class="btn-pull-sm" data-model="${escapeAttr(fullName)}">⬇</button>
             </div>`;
         }).join('') + '</div>';
 
@@ -1755,7 +1792,7 @@ async function expandModelTags(modelName, idx, btn) {
             b.addEventListener('click', () => pullOllamaModel(b.dataset.model, b));
         });
     } catch (err) {
-        container.innerHTML = `<p class="model-search-hint" style="padding:4px 0;font-size:11px;">Failed: ${err.message}</p>`;
+        container.innerHTML = `<p class="model-search-hint" style="padding:4px 0;font-size:11px;">Failed: ${escapeHtml(err.message || 'Unknown error')}</p>`;
         btn.disabled = false;
         btn.textContent = 'Versions';
     }
